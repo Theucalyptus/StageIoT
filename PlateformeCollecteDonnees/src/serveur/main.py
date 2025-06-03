@@ -31,7 +31,6 @@ def init_db():
 
         mydb = mysql.connector.connect(host="localhost", user=Config["SQL_username"])
         cursor = mydb.cursor()
-        
         # Seaching for DB
         liste_db=[]
         cursor.execute("SHOW DATABASES LIKE %s", (Config["db_name"],))
@@ -43,33 +42,40 @@ def init_db():
             mydb.cmd_init_db(Config["db_name"])
 
         elif len(liste_db)==0:
-            print("Aucune base de données de ce nom n'a été trouvé. Voulez vous la créer ? ", end="")
-            valid = False
-            while not valid:
-                ans = input("[y/n] : ")
-                ans = ans.strip(" ")
-                ans = ans.strip("-")
-                ans = ans.lower()
-                if ans in ["y","yes","ye","es"]:
-                    valid = True
-                    #Create DB
-                    query="CREATE database " + utils.sql_var(Config["db_name"])
-                    print(query)
-                    cursor.execute(query)
-                    db_query = "USE "+ utils.sql_var(Config["db_name"])
-                    cursor.execute(db_query)
-                else :
-                    if ans in  ["n","no"]:
-                        # Dont create DB -> exit
-                        exit(0) 
-                    else :
-                        print("Veulliez respecter la syntaxe ", end="")
+            # DOCKER BYPASS ALWAYS CREATE EMPTY DB
+            #Create DB
+            query="CREATE database " + utils.sql_var(Config["db_name"])
+            print(query)
+            cursor.execute(query)
+            db_query = "USE "+ utils.sql_var(Config["db_name"])
+            cursor.execute(db_query)
+            # print("Aucune base de données de ce nom n'a été trouvé. Voulez vous la créer ? ", end="")
+            # valid = False
+            # while not valid:
+            #     ans = input("[y/n] : ")
+            #     ans = ans.strip(" ")
+            #     ans = ans.strip("-")
+            #     ans = ans.lower()
+            #     if ans in ["y","yes","ye","es"]:
+            #         valid = True
+            #         #Create DB
+            #         query="CREATE database " + utils.sql_var(Config["db_name"])
+            #         print(query)
+            #         cursor.execute(query)
+            #         db_query = "USE "+ utils.sql_var(Config["db_name"])
+            #         cursor.execute(db_query)
+            #     else :
+            #         if ans in  ["n","no"]:
+            #             # Dont create DB -> exit
+            #             exit(0) 
+            #         else :
+            #             print("Veulliez respecter la syntaxe ", end="")
                         
         # Import tables (if they dont exist yet)
         
         path_setup_DB = os.path.join(__file__.rsplit(os.path.sep, 1)[0], Config['db_init_file']+".sql")
         sql=open(path_setup_DB)
-        cursor.execute(sql.read(), multi=True)
+        cursor.execute(sql.read())
         
         db=mydb
         

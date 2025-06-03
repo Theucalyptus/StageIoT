@@ -1,0 +1,32 @@
+services:
+  db:
+    container_name: iot-pcd-db
+    image: mysql
+    restart: always
+    network_mode: host
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: yes 
+      MYSQL_ROOT_PASSWORD:    
+    ports:
+      - 3306:3306
+    expose:
+      - 3306
+    volumes:
+      - db_data:/var/lib/mysql
+
+  wui:
+    container_name: iot-pcd-wui
+    build:
+      context: ./serveur/
+      dockerfile: Dockerfile
+    restart: always
+    network_mode: host
+    ports:
+      - 5000:5000
+    expose:
+      - 5000
+    depends_on:
+      - db
+
+volumes:
+  db_data:
