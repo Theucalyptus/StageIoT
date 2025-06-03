@@ -33,9 +33,9 @@ uart = UART(1, baudrate=115200) # Tx : P3, Rx : P4
 ####### Initialisation LoRa #######
 lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868) # Initialise LoRa en mode LORAWAN.
 
-app_eui = '7532159875321598'
-app_key = '11CBA1678ECF54273F5834C41D82E57F'
-dev_eui = '70B3D57ED0068A6F'
+app_eui = '70B3D57ED003A322'
+app_key = '3072E1FA34B866583697F768C9F9BA13'
+dev_eui = '70b3d5499809d4ea'
 
 app_eui_unhex = ubinascii.unhexlify(app_eui)
 app_key_unhex = ubinascii.unhexlify(app_key)
@@ -50,7 +50,7 @@ while not lora.has_joined():        # Attente de connexion au réseau LoRaWAN
     time.sleep(2.5)
     pycom.rgbled(0x010000)          # Couleur led rouge pour signaler la non connexion
     uart.write("01"+dev_eui.lower()+"\n") 
-    print("envoi eui")
+    #print("envoi eui")
     print('Not yet joined...')
 
 pycom.rgbled(0x000100)              # Couleur led verte pour signaler la connexion
