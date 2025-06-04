@@ -68,38 +68,38 @@ def save_DB(data,id=0):
         print(e)
 
 def data_LoRa_handler(message,device):
-    id = int(message[0],base=16)
+    #id = int(message[0],base=16)
     message = message[0]+device+"," + message[1:]
-    
+
     # print(message)
-    if id in range(0,16):
+    #if id in range(0,16):
         #print(data)
-        requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=message)
+    requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=message)
         # save_DB(data,id)
 
 
 def LoRa_msg_handler(msg):
     try :
         message = json.loads(msg.payload)
-        # print(msg.topic)
-        #print(msg.payload)
+        #print(message)
+        device = message['end_device_ids']['dev_eui'] #  EUI
+        device_ttn_name = message['end_device_ids']['device_id'] # Device's name as registered in TTN
         type = msg.topic.split("/")[-1]
         match type : 
             case "join":
-                device = message['end_device_ids']['device_id']
-                print(device)
+                print(device_ttn_name, "("+device+")", "join msg received")
             case "up":
+                print("uplink message received")
                 data = message['uplink_message']['frm_payload']
                 data = base64.b64decode(data.encode())
                 try :
                     data = data.decode()
                 except UnicodeDecodeError :
                     data = data.hex()
-                #print(data)
-                data_LoRa_handler(data,msg.topic.split("/")[3].split("-")[-1])
+
+                data_LoRa_handler(data, device)
     except (RuntimeError,KeyError) as e :
-        print(msg.payload)
-        print(e)
+        print("ERROR", msg.playload, e)
 
 def IP_msg_handler(msg):
     # print(msg)
@@ -128,7 +128,7 @@ def IP_msg_handler(msg):
 
 def Ifnode(Q_Lora : Queue, Q_4G : Queue, Config_):
     global db, db_cursor, Config
-    print("Starting If node")
+    print("Starting Interface node")
     Config=Config_
     db = mysql.connector.connect(host="localhost", user=Config["SQL_username"])
     db_cursor = db.cursor(buffered=True)
@@ -143,5 +143,4 @@ def Ifnode(Q_Lora : Queue, Q_4G : Queue, Config_):
             LoRa_msg_handler(message)
         if not Q_4G.empty():
             message = Q_4G.get()
-            # print(message)
             IP_msg_handler(message)

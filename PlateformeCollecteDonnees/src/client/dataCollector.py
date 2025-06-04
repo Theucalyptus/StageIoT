@@ -17,7 +17,6 @@ data_format = { 'timestamp':"", 'luminosity':None, 'pression':None, 'temperature
                 'azimuth':None, 'distance_recul':None, 'presence':None , 'humidite':None,  'distance_recul':None}
 
 def save_DB(data):
-
     """
     Saves the Data in the local DB with format relative to the msg ID
     """

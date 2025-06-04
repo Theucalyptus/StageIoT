@@ -1,0 +1,5 @@
+mysql
+pyserial
+opencv-python
+depthai
+numpy

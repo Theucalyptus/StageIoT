@@ -2,3 +2,12 @@
 *.o
 *.d
 *.pyc
+
+
+# VSCODE
+.vscode
+*.code-workspace
+
+# Python
+*/venv/
+*/__pycache__/

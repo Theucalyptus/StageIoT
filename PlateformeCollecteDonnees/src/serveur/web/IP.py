@@ -31,6 +31,8 @@ app._static_folder = './static/'
 app.secret_key = 'your_secret_key'
 Q_out: Queue
 data_storage = {}
+# DEBUG ONLY
+#data_storage = {"70b3d5499809d4ea" : [{"eui":"70b3d5499809d4ea", "timestamp":1900, "latitude":43.6, "longitude":1.4}, {"eui":"70b3d5499809d4ea", "timestamp":1910, "latitude":43.6, "longitude":1.45}]}
 objects_storage = {}
 Config = {}
 
@@ -209,13 +211,14 @@ def post_data():
         if int(raw_data[0]) == 2:
             # Extraire les données de la chaîne
             data_list = raw_data[1:].split(',')
+            #print(len(data_list), data_list)
             if len(data_list) == 18:  # verification du nombre de données aquises
 
                 # Créer un dictionnaire de données avec les données essentielles
                 data = {
                     "eui": str(data_list[0]).lower().removesuffix("\n"),
                     "timestamp": int(float(data_list[1])*1000)
-                }
+                }   
                 
                 # Liste des données pouvant être extraites
                 fields = [
@@ -256,9 +259,12 @@ def post_data():
             
         elif int(raw_data[0]) == 3:
             # Extraire les différents objets de la chaîne
-            objects = raw_data[1:].split(';')[:-1]
+            #print(raw_data)
+            #objects = raw_data[1:].split(';')[:-1]
+            objects = raw_data[1:].split(';')
+
             # Extraire l'eui et le timestamp
-            eui = objects[0].split(',')[0]
+            eui = objects[0].split(',')[0].lower()
             timestamp = (float(objects[0].split(',')[1]))
 
             # Vérifier si l'eui est vide
@@ -283,7 +289,7 @@ def post_data():
                     # Ajouter les données à la base de données
                     Interface.save_DB(data, 3)
                     
-                    print(object)
+                    #print(object)
                     # Ajouter les données à la liste d'objets
                     objects_storage[eui].append(object)
                 elif obj != ['']:
@@ -360,14 +366,12 @@ def get_data():
     query = "SELECT device FROM DeviceOwners WHERE owner = %s;"
     cursor.execute(query,(username,))
     result= cursor.fetchall()
-
     # Si l'utilisateur a des devices associés, récupérer les données de ces devices
     if len(result) !=0:
         for device in result[:][0]:
             # Récupérer les données de la base de données
             if duration != None and float(duration) > 60:
                 duration = float(duration)
-                
                 if (device in data_storage) and len(data_storage[device])>0:
                     args = (device,datetime.fromtimestamp(data_storage[device][-1]['timestamp']/1000-duration-1))
                 else : 
@@ -398,12 +402,29 @@ def get_data():
 @auth.login_required
 def get_recent_data():
     """
-    Retrieves the most recent data from the data storage.
+    Retrieves the most recent data from the data storage for each devices.
 
     Returns:
-        A JSON response containing the most recent data from the data storage.
+        A JSON response containing the most recent data from the data storage, with convenient name added.
     """
-    return jsonify(data_storage)
+    
+
+
+    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
+    cursor = db.cursor()
+    temp = {}
+
+    for k in data_storage.keys():
+        temp[k] = data_storage[k][-1] # get last data for device k
+        query = "SELECT name FROM Device WHERE `dev-eui` = %s;"
+        cursor.execute(query, [temp[k]['eui']])
+        try:
+            res = cursor.fetchall()[0][0]
+            temp[k]['name'] = res
+        except IndexError:
+            temp[k]['name'] = "unkown"
+    
+    return jsonify(temp)
 
 def data_labels_to_json(data,table):
     result = []
@@ -1080,13 +1101,13 @@ def delete_dev(deveui):
         redirect: A redirect response to the device list page.
     """
     username = check_user_token()
-    res = delete_device(deveui,username)
+    res = __delete_device(deveui,username)
     if res==False:
         return jsonify({"status": "error"}), 400 
     return redirect(url_for('deviceList'))
 
 
-def delete_device(deveui,username):
+def __delete_device(deveui,username):
     """
     Deletes the device and its association with the user.
 
@@ -1105,7 +1126,6 @@ def delete_device(deveui,username):
         db.commit()
     return cond
     
-        
 
 @app.route('/profile', methods=['GET', 'POST'])
 @auth.login_required
@@ -1484,7 +1504,7 @@ def apiDeleteDevice():
 
     if username:
         if check_link_device(deveui,username):
-            delete_device(deveui,username)
+            __delete_device(deveui,username)
             return jsonify({"status": "success"}), 200
         else:
             return jsonify({"status": "error", "message": 'no such linked Device was found'}), 400 
@@ -1543,7 +1563,6 @@ def apiNeighbourList(deveui):
     return jsonify(neighbours)
 
 @app.route('/api/objets_proches/<deveui>', methods=['GET'])
-
 def apiObjets_proches(deveui):
     """
     Retrieve nearby objects based on the given device ID.
@@ -1579,7 +1598,7 @@ def apiObjets_proches(deveui):
     if (device_location==None):
         return jsonify({"error":"No device with this eui has been recorded"}), 400
     
-    latitude, longitude, angle, azimuth = device_location
+    latitude, longitude, *_ = device_location
 
     query = """
         SELECT Distinct Device.`dev-eui`
@@ -1603,11 +1622,10 @@ def apiObjets_proches(deveui):
     # print (objects_storage)
     return jsonify(objects),200
 
-
 @app.route('/api/getObject/<deveui>', methods=['GET'])
 def apiGetObjects(deveui):
     """
-    Retrieve an object from the objects_storage based on the given deveui.
+    Retrieve objects from the objects_storage based on the given eui.
 
     Args:
         deveui (str): The deveui of the object to retrieve.
@@ -1617,6 +1635,7 @@ def apiGetObjects(deveui):
             The JSON response contains the object if found, otherwise an error message.
             The HTTP status code is 200 if the object is found, otherwise 404.
     """
+
     if deveui in objects_storage:
         return jsonify(objects_storage[deveui]), 200
     else:
@@ -1641,8 +1660,8 @@ def IPnode(Q_output: Queue, config):
         None
     """
     global Q_out, Config
-    Config= config
-    Q_out = Q_output
+    Config=config
+    Q_out=Q_output
     db = mysql.connector.connect(host="localhost", user=config["SQL_username"])
     app.app_context().push()
     with app.app_context():
@@ -1668,5 +1687,6 @@ def IPnode_noconfig(Q_output: Queue):
     app.run(host='0.0.0.0', port=5000, debug=True, ssl_context='adhoc')
     
 if __name__ == '__main__':
+    print("INFO: launching IP as main script")
     q = Queue()
     IPnode_noconfig(q)

@@ -2,7 +2,6 @@ from queue import Queue
 import sys
 import threading
 import time
-import mysql.connector
 import mysql.connector.abstracts
 import dataCollector
 import NetworkUnit
@@ -20,7 +19,6 @@ db : mysql.connector.MySQLConnection
 db_cursor : mysql.connector.abstracts.MySQLCursorAbstract
 
 def init_config():
-    
     """
     Initialise the program Config
     The config file must be in the same folder/directory as the program
@@ -57,31 +55,25 @@ def init_db():
     mydb = mysql.connector.connect(host="localhost", user=Config["SQL_username"])
     db = mydb
     cursor = mydb.cursor()
-    
-    
+        
     # Seaching for DB
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{Config['db_name']}`")
-    
 
-    
     db_query = "USE "+ Config["db_name"]
     cursor.execute(db_query)
     db_cursor=cursor
   
 
 def init_client():
-
     """
     Initialise the server config and database.
     """
-    
+
     init_config()
     init_db()
-    
 
 
 def run_client():
-
     """
     Run the client nodes. A node is a thread with a functionality (it may create other threads that fulfill the same goal.).
     We link the diferents threads with Queues. Thoses represent the channels and we can determine the form of the data with it.
@@ -107,13 +99,11 @@ def run_client():
         while threading.active_count()>1:
             time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
-        
         sys.exit()
     
 
 
 def main():
-
     """
     This is the main function of the Data Collecting plateform client.
     This program uses a MySQL database.

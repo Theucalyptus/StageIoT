@@ -43,7 +43,9 @@ def init_db():
 
         elif len(liste_db)==0:
             # DOCKER BYPASS ALWAYS CREATE EMPTY DB
-            #Create DB
+            print("WARNING: Required database " + utils.sql_var(Config["db_name"]) + " not found. This could be an issue of persistent storage")
+            print("INFO: If this is the first launch of the service, this is excepted behaviour and the database will be created automatically for you.")
+            # Create DB
             query="CREATE database " + utils.sql_var(Config["db_name"])
             print(query)
             cursor.execute(query)
@@ -164,6 +166,7 @@ def main():
     DB auth not implemented yet, use a user with no password.
     """
 
+    print("Starting Web Server")
     init_server()
     run_server()
 
