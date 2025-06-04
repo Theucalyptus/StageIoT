@@ -9,10 +9,13 @@ services:
       MYSQL_ROOT_PASSWORD:    
     ports:
       - 3306:3306
-    expose:
-      - 3306
     volumes:
-      - db_data:/var/lib/mysql
+      - iot_db_data:/var/lib/mysql
+    healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
   wui:
     container_name: iot-pcd-wui
@@ -23,10 +26,9 @@ services:
     network_mode: host
     ports:
       - 5000:5000
-    expose:
-      - 5000
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
-  db_data:
+  iot_db_data:
