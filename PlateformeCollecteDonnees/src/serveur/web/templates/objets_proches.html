@@ -53,13 +53,13 @@
     <script>
         function speakObjects() {
             const synth = window.speechSynthesis;
-            let objectsText = '';
-            {% for neighbour, details in objects.items() %}
-                {% for detail in details %}
-                    objectsText += '{{ detail.label[0:-1] }}';
+            let objText = '';
+            {% for device, objects in data.items() %}
+                {% for obj in objects %}
+                    objText += '{{ obj.label[0:-1] }}';
                 {% endfor %}
             {% endfor %}
-            console.log(objectsText);
+            console.log(objText);
             const utterThis = new SpeechSynthesisUtterance(objectsText);
             synth.speak(utterThis);
         }
@@ -71,19 +71,19 @@
         <button class="btn btn-primary " onclick="window.location.href='/'">Home</button>
     </div>  
     <h1>Objets Proches</h1>
-    {% if objects %}
+    {% if data %}
         <ul>
-        {% for neighbour, details in objects.items() %}
-            console.log(neighbour);
-            {% set distance = distances[neighbour] %}
-            <li> {{ neighbour }} </li>
-            <div id="objectsContainer">
-                <ul>
-                {% for detail in details %}
-                    console.log(detail);
-                    <li>{{ detail.label }} : {{ detail.distance }}, distance : {{distance}} </li>
-                {% endfor %}
-                </ul>
+        {% for device, objects in data.items() %}
+            {% set distance = distances[device] %}
+            <div>
+                <li> Objects seen by : {{ device }} </li>
+                <div id="objectsContainer">
+                    <ul>
+                    {% for obj in objects %}
+                        <li>{{ obj.label }} : {{ obj.distance }}, distance : {{distance}} </li>
+                    {% endfor %}
+                    </ul>
+                </div>
             </div>
         {% endfor %}
         </ul>

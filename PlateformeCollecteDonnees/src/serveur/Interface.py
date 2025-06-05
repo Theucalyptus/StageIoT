@@ -30,7 +30,6 @@ def save_DB(data,id=0):
             case 2 :
                 table = "Data"
                 db_cursor.execute("SELECT * FROM "+table+" WHERE timestamp = %(timestamp)s",data)
-                
                 if db_cursor.rowcount >= 1:
                     utils.print_SQL_response(db_cursor)
                 else :
@@ -89,7 +88,7 @@ def LoRa_msg_handler(msg):
             case "join":
                 print(device_ttn_name, "("+device+")", "join msg received")
             case "up":
-                print("uplink message received")
+                #print("uplink message received")
                 data = message['uplink_message']['frm_payload']
                 data = base64.b64decode(data.encode())
                 try :

@@ -7,7 +7,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
     print(f"Connected with result code {reason_code}")
 
 def on_message(client, userdata, msg):
-    print("MQTT on_message: received from LoRa")
+    #print("MQTT on_message: received from LoRa")
     Q_output.put(msg)
     
 

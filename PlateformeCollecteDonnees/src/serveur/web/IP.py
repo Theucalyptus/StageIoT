@@ -199,9 +199,6 @@ def post_data():
         JSON response: A JSON response indicating the status of the request.
     """
     
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
-    cursor = db.cursor()
-    
     if request.method == 'POST': 
         # récupérer les données de la requête
         raw_data = request.get_data().decode('utf-8')
@@ -243,7 +240,6 @@ def post_data():
                 # Ajouter les données extraites au dictionnaire 
                 for field, index, *type_cast in fields:
                     try:
-                        print("field", field, "data", data_list[index])
                         data[field] = (type_cast[0] if type_cast else float)(data_list[index])
                     except ValueError: # cas si la valeur est mal transmise
                         data[field] = None
@@ -278,9 +274,9 @@ def post_data():
                 if len(obj) == 4:
                     object = {}
                     object["timestamp"]=timestamp
-                    object["x"] = obj[0]
-                    object["y"] = obj[1]
-                    object["z"] = obj[2]
+                    object["x"] = float(obj[0])
+                    object["y"] = float(obj[1])
+                    object["z"] = float(obj[2])
                     object['label'] = obj[3]
                         
                     data = object.copy()
@@ -1174,6 +1170,55 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
     return distance
 
+
+
+
+def __getNearbyObjects(eid, size):
+    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    cursor = db.cursor()
+    neighbours=[]
+    query = """
+        SELECT latitude, longitude
+        FROM Data
+        WHERE source = %s
+        ORDER BY timestamp DESC
+        LIMIT 1;
+    """
+    cursor.execute(query, (eid  ,))
+    device_location = cursor.fetchone()
+    latitude, longitude = device_location
+
+    print("__getNearbyObjects", eid, size)
+
+    query = """
+        SELECT DISTINCT Device.`dev-eui`
+        FROM Data
+        JOIN Device ON Data.source = Device.`dev-eui`
+        JOIN DeviceOwners ON Device.`dev-eui` = DeviceOwners.device
+        AND POWER(Data.latitude - %s, 2) + POWER(Data.longitude - %s, 2) <= POWER(%s, 2)"""
+    
+    d = """
+        AND Data.timestamp > %s;
+    """
+    
+    cursor.execute(query, (latitude, longitude, size)) # , datetime.now() - timedelta(seconds=60)))
+    #cursor.execute(query, ())
+
+    
+    neighbours = cursor.fetchall()
+    # recuperer les objets vus par ces appareils
+    objects = {}
+    distances = {}
+    for nlist in neighbours:
+        neighbour = nlist[0]
+        if neighbour in objects_storage:
+            distance = calculate_distance(latitude, longitude, objects_storage[neighbour][0]['x'], objects_storage[neighbour][0]['y'])
+            objects[neighbour] = objects_storage[neighbour]
+            distances[neighbour] = distance
+
+
+    return objects, distances
+
 @app.route('/objets_proches/<deveui>', methods=['GET'])
 @auth.login_required
 def objets_proches(deveui):
@@ -1187,45 +1232,9 @@ def objets_proches(deveui):
         A rendered HTML template with the nearby objects.
 
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
-    cursor = db.cursor()
-
-    size = 0.0001 
-
-    neighbours=[]
-    query = """
-        SELECT latitude, longitude
-        FROM Data
-        WHERE source = %s
-        ORDER BY timestamp DESC
-        LIMIT 1;
-    """
-    cursor.execute(query, (deveui,))
-    device_location = cursor.fetchone()
-    latitude, longitude = device_location
-
-    query = """
-        SELECT DISTINCT Device.`dev-eui`
-        FROM Data
-        JOIN Device ON Data.source = Device.`dev-eui`
-        JOIN DeviceOwners ON Device.`dev-eui` = DeviceOwners.device
-        AND POWER(Data.latitude - %s, 2) + POWER(Data.longitude - %s, 2) <= POWER(%s, 2)
-        AND Data.timestamp > %s;
-    """
-    cursor.execute(query, (latitude, longitude, size, datetime.now() - timedelta(seconds=15)))
-    neighbours = cursor.fetchall()
-
-    # recuperer les objets vus par ces appareils
-    objects = {}
-    distances = {}
-    for neighbour in neighbours:
-        if neighbour[0] in objects_storage:
-            distance = calculate_distance(latitude, longitude, objects_storage[neighbour[0]][0]['lat'], objects_storage[neighbour[0]][0]['long'])
-            objects[neighbour[0]] = objects_storage[neighbour[0]]
-            distances[neighbour[0]] = distance
-    # print (objects)
-    # print (distances)
-    return render_template('objets_proches.html', objects=objects, distances=distances)
+    size = request.args.get("size", 1) 
+    data, distances = __getNearbyObjects(deveui, size)
+    return render_template('objets_proches.html', data=data, distances=distances)
 
 @app.route('/getApiKey', methods=['GET'])
 @auth.login_required
@@ -1565,6 +1574,8 @@ def apiNeighbourList(deveui):
 def apiObjets_proches(deveui):
     """
     Retrieve nearby objects based on the given device ID.
+    
+    Antoine: retrieve objects seen by nearby devices (excluding the ones seen by ourselves)
 
     Args:
         deveui (str): The device ID.
@@ -1582,8 +1593,10 @@ def apiObjets_proches(deveui):
     cursor = db.cursor()
 
     size = request.args.get('size', 0.0007)
-
     neighbours=[]
+
+
+    # get the latest known location of the device
     query = """
         SELECT latitude, longitude, angle, azimuth
         FROM Data
@@ -1593,7 +1606,6 @@ def apiObjets_proches(deveui):
     """
     cursor.execute(query, (deveui,))
     device_location = cursor.fetchone()
-    # print(device_location)
     if (device_location==None):
         return jsonify({"error":"No device with this eui has been recorded"}), 400
     
@@ -1609,16 +1621,17 @@ def apiObjets_proches(deveui):
     """
     cursor.execute(query, (latitude, longitude, size, datetime.now() - timedelta(seconds=30)))
     neighbours = cursor.fetchall()
-    # print(datetime.now().timestamp())
+
     # recuperer les objets vus par ces appareils
     objects = {}
-    distances = {}
-    # print(neighbours)
+
+    #distances = {}
+
     for neighbour in neighbours:
-        if neighbour[0] in objects_storage:
-            
-            objects[neighbour[0]] = objects_storage[neighbour[0]]
-    # print (objects_storage)
+        n = neighbour[0]
+        if n in objects_storage:            
+            objects[n] = objects_storage[n]
+    
     return jsonify(objects),200
 
 @app.route('/api/getObject/<deveui>', methods=['GET'])
