@@ -243,11 +243,10 @@ def post_data():
                 # Ajouter les données extraites au dictionnaire 
                 for field, index, *type_cast in fields:
                     try:
+                        print("field", field, "data", data_list[index])
                         data[field] = (type_cast[0] if type_cast else float)(data_list[index])
                     except ValueError: # cas si la valeur est mal transmise
                         data[field] = None
-
-                # print(data)
 
                 # Ajouter les données à la file d'attente et au cache
                 Q_out.put(data)
@@ -293,7 +292,7 @@ def post_data():
                     # Ajouter les données à la liste d'objets
                     objects_storage[eui].append(object)
                 elif obj != ['']:
-                    print (obj)
+                    print ("objet", obj)
                     return jsonify({"status": "error", "message": "Invalid object format"}), 400 # mauvais format d'objet
             
             return jsonify({"status": "success", "message": "Objets envoyés"}), 200

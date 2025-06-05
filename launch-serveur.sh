@@ -11,7 +11,7 @@ fi
 cd PlateformeCollecteDonnees/src/ || exit
 
 echo "Lancemement du serveur (mySQL + Web UI/API via Docker Compose)"
-docker compose up --build
+docker compose up --build --remove-orphans
 
 cd ../..
 pwd

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS Data (
     `humidity` float DEFAULT NULL,
     `luminosity` float DEFAULT NULL,
     `presence` tinyint(1) DEFAULT NULL,
-    `pression` float DEFAULT NULL,
+    `pressure` float DEFAULT NULL,
     `longitude` float DEFAULT NULL,
     `latitude` float DEFAULT NULL,
     `altitude` float DEFAULT NULL,

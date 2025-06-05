@@ -5,12 +5,12 @@ import mysql.connector
 import mysql.connector.abstracts
 import sys
 import uuid
-from MiddlewareUnit import MsgToData
+from Uart import MsgToData
 
 db : mysql.connector.MySQLConnection
 db_cursor : mysql.connector.abstracts.MySQLCursorAbstract
 db_cursor_object : mysql.connector.abstracts.MySQLCursorAbstract
-data_format = { 'timestamp':"", 'luminosity':None, 'pression':None, 'temperature':None,
+data_format = { 'timestamp':"", 'luminosity':None, 'pressure':None, 'temperature':None,
                 'longitude':None, 'latitude':None, 'altitude':None, 'angle':None, 
                 'vitesse_angulaire_X':None, 'vitesse_angulaire_Y':None, 'vitesse_angulaire_Z':None,
                 'acceleration_X':None, 'acceleration_Y':None, 'acceleration_Z':None,
@@ -27,12 +27,12 @@ def save_DB(data):
 
             table = "Data"
             query = "INSERT INTO "+ table +" (timestamp, temperature, humidity, luminosity,\
-                    presence, pression, longitude, latitude, altitude, angle, \
+                    presence, pressure, longitude, latitude, altitude, angle, \
                     vitesse_angulaire_X, vitesse_angulaire_Y, vitesse_angulaire_Z,\
                     acceleration_X, acceleration_Y,acceleration_Z,\
                     azimuth, distance_recul) \
                     VALUES (%(timestamp)s, %(temperature)s, %(humidite)s, %(luminosity)s,\
-                    %(presence)s, %(pression)s, %(longitude)s, %(latitude)s, %(altitude)s, %(angle)s,\
+                    %(presence)s, %(pressure)s, %(longitude)s, %(latitude)s, %(altitude)s, %(angle)s,\
                     %(vitesse_angulaire_X)s, %(vitesse_angulaire_Y)s, %(vitesse_angulaire_Z)s,%(acceleration_X)s,\
                     %(acceleration_Y)s,%(acceleration_Z)s, %(azimuth)s, %(distance_recul)s)"
             if 'Object' in data:

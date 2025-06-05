@@ -74,7 +74,7 @@ Il est aussi possible d'utiliser arduino ide pour téléverser sur l'esp (bien p
 L'appareil traite différents types de données :
 
 * Données GPS (latitude, longitude, altitude)
-* Données environnementales (luminosité, pression)
+* Données environnementales (luminosité, pressure)
 * Données de mouvement (vitesse angulaire, accélération)
 * Données d'orientation (angle, azimut)
 * Données des capteurs (distance, température, humidité)

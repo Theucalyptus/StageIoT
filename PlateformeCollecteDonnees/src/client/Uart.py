@@ -7,7 +7,7 @@ uartLoRa = serial.Serial()
 uartLTE = serial.Serial()
 LoRa_eui = ""
 
-data_format = { 'timestamp':"", 'luminosity':None, 'pression':None, 'temperature':None,
+data_format = { 'timestamp':"", 'luminosity':None, 'pressure':None, 'temperature':None,
                 'longitude':None, 'latitude':None, 'altitude':None, 'angle':None, 
                 'vitesse_angulaire_X':None, 'vitesse_angulaire_Y':None, 'vitesse_angulaire_Z':None,
                 'acceleration_X':None, 'acceleration_Y':None, 'acceleration_Z':None,
@@ -27,7 +27,7 @@ def DataToMsg(Data):
             date = str(datetime.datetime.timestamp(datetime.datetime.now()))
         messages.append("2"+date+","+Data["latitude"]+","+Data["longitude"]+","+Data["altitude"]+"," \
                     +Data["luminosity"]+","+Data["vitesse_angulaire_X"]+","+Data["vitesse_angulaire_Y"]+","+Data["vitesse_angulaire_Z"]\
-                    +","+Data["pression"]+","+Data["acceleration_X"]+","+Data["acceleration_Y"]+","+Data["acceleration_Z"]\
+                    +","+Data["pressure"]+","+Data["acceleration_X"]+","+Data["acceleration_Y"]+","+Data["acceleration_Z"]\
                     +","+Data["angle"]+","+Data["azimuth"]+ ","+Data["distance_recul"]+","+Data["humidite"]+","+Data["temperature"])
     if "Object" in Data:
         date = str(datetime.datetime.timestamp(datetime.datetime.now()))
@@ -49,7 +49,6 @@ def MsgToData(msg):
     Takes the msg and puts it in a Data format
     """
 
-    
     Data = data_format
     if msg[0] == "3":
         objects = msg.strip("\n").split(";")[:-1]
@@ -69,7 +68,7 @@ def MsgToData(msg):
             Data["vitesse_angulaire_X"] = msg[6]
             Data["vitesse_angulaire_Y"] = msg[7]
             Data["vitesse_angulaire_Z"] = msg[8]
-            Data["pression"] = msg[9]
+            Data["pressure"] = msg[9]
             Data["acceleration_X"] = msg[10]
             Data["acceleration_Y"] = msg[11]
             Data["acceleration_Z"] = msg[12]
@@ -98,7 +97,6 @@ def UartWriteLoRa(Data):
         uartLoRa.write((msg+"\n").encode('utf-8'))
         print(msg)
     
-
 def UartWriteLTE(Data):
 
     """
@@ -111,7 +109,7 @@ def UartWriteLTE(Data):
         print(msg)
 
 
-def Middlewarenode(Q_capteurs, Config):
+def Uartnode(Q_capteurs, Config):
 
     """
     This is the Middleware node, it sets the right uart interface through the config file and retrives all data comming through the sensor Uart.
@@ -119,12 +117,15 @@ def Middlewarenode(Q_capteurs, Config):
 
 
     global uartLoRa, uartLTE
+    print("Uart worker (recv/send) online")
     uartLoRa= serial.Serial("/dev/tty"+Config["LoRaUartIF"],115200)
     uartLTE= serial.Serial("/dev/tty"+Config["LTEUartIF"],115200)
     uartSensor= serial.Serial("/dev/tty"+Config["SensorUartIF"], 115200)
+    
     try:
         while True:
             msg = uartSensor.readline()
+            print("msg received from sensors via uart:", msg)
             try :
                 if (msg.decode('utf-8')[:4] == "LoRa"):
                     LoRa_eui = msg.decode('utf-8')[4:]

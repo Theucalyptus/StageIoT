@@ -5,15 +5,11 @@ import time
 import mysql.connector.abstracts
 import dataCollector
 import NetworkUnit
-import MiddlewareUnit
+import Uart 
 import spatial_object_detection
 
 
-Config={"db_name":"plateformeIoT","SQL_username":"n7","db_init_file":"stageiot", 
-        "APP_username":"stm32lora1@ttn" , "APP_password":"NNSXS.U6KN7IY6K2MWWA54MKJVCON3BFH2B4GNBVYC7VY.F33QNU3IFQ63X7XOBVHS7AU4O2DA4MPPC6M3EXXTEZHKGSZAUALA", 
-        "APP_hostname":"eu1.cloud.thethings.network", "APP_port":"8883",
-        "server_host":'0.0.0.0',"server_port":'5000',
-        "LoRaUartIF":None,"LTEUartIF":None,"SensorUartIF":None
+Config={"db_name":"capteurIoT","SQL_username":"root","db_init_file":"stageiot", "LoRaUartIF":None,"LTEUartIF":None,"SensorUartIF":None
         }
 db : mysql.connector.MySQLConnection
 db_cursor : mysql.connector.abstracts.MySQLCursorAbstract
@@ -85,16 +81,16 @@ def run_client():
     Q_output = Queue() # Queue of the data output (same thing you send to the serer but you get an access for yourself in local)
     Q_ns= Queue(1) # Queue to update the network state   !!!! NOT USED YET !!!!
 
-    threadMiddleware = threading.Thread(target=MiddlewareUnit.Middlewarenode,args=[Q_data,Config])
+    threadMiddleware = threading.Thread(target=Uart.Uartnode,args=[Q_data,Config])
     threadDataCollecter = threading.Thread(target=dataCollector.dataCollectornode,args=[Q_data, Q_data_objects, Q_output,Q_send,Config, db, db_cursor])
     threadSend = threading.Thread(target=NetworkUnit.Sendnode,args=[Q_send,Q_ns,Config])
-    threadObjectDetection = threading.Thread(target=spatial_object_detection.ObjectDetection,args=[Q_data_objects])
+    #threadObjectDetection = threading.Thread(target=spatial_object_detection.ObjectDetection,args=[Q_data_objects])
 
     try:
         threadMiddleware.start()
         threadDataCollecter.start()
         threadSend.start()
-        threadObjectDetection.start()
+        #threadObjectDetection.start()
 
         while threading.active_count()>1:
             time.sleep(1)

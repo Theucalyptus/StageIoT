@@ -6,7 +6,7 @@ import cv2
 import depthai as dai
 import numpy as np
 import time
-from MiddlewareUnit import MsgToData
+from Uart import MsgToData
 
 class ObjetSpatial:
     def __init__(self, x, y, z, type_objet):
