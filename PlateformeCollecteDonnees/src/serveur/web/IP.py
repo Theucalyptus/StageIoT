@@ -36,28 +36,6 @@ data_storage = {}
 objects_storage = {}
 Config = {}
 
-def get_user_from_api_key(api_key):
-    """
-    Retrieve the username associated with the given API key.
-
-    Args:
-        api_key (str): The API key to be verified.
-
-    Returns:
-        str: The username associated with the API key if it is valid.
-        None: If the API key is invalid or not found in the database.
-    """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
-    cursor = db.cursor()
-    query = "SELECT username FROM Users WHERE `api-key` = %s"
-    cursor.execute(query, (api_key,))
-    result = cursor.fetchall()
-    if len(result) == 1:
-        return result[0][0]
-    else:
-        return None
-
-
 def hash_password(password):
     """
     Hashes the given password using bcrypt.
@@ -400,8 +378,6 @@ def get_recent_data():
     Returns:
         A JSON response containing the most recent data from the data storage, with convenient name added.
     """
-    
-
 
     db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
     cursor = db.cursor()
@@ -1199,6 +1175,7 @@ def __getNearbyObjects(eid, size):
         JOIN DeviceOwners ON Device.`dev-eui` = DeviceOwners.device
         AND POWER(Data.latitude - %s, 2) + POWER(Data.longitude - %s, 2) <= POWER(%s, 2)"""
     
+    # TODO: filtrage temporel à remettre quand les émetteurs seront synchro
     d = """
         AND Data.timestamp > %s;
     """
@@ -1310,6 +1287,25 @@ def get_user_from_api_key(api_key):
     else:
         return None
 
+
+
+def __queryDeviceList(username):
+    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    cursor = db.cursor()
+    query = """
+    SELECT Device.`dev-eui`, Device.name 
+    FROM Device
+    JOIN DeviceOwners ON Device.`dev-eui` = DeviceOwners.device
+    WHERE DeviceOwners.owner = %s
+    """ 
+    
+    print("username" , username)
+    cursor.execute(query, (username,))
+    devices = cursor.fetchall()
+    
+    result = [{"dev-eui": device[0], "name": device[1]} for device in devices]
+    return result
+
 @app.route('/api/deviceList', methods=['GET', 'POST'])
 def apiDeviceList():
     """
@@ -1318,22 +1314,10 @@ def apiDeviceList():
     Returns:
         A JSON response containing the list of devices, where each device is represented as a dictionary with 'dev-eui' and 'name' keys.
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
-    cursor = db.cursor()
     key = request.args.get('key')
     username = get_user_from_api_key(key)
-    query = """
-    SELECT Device.`dev-eui`, Device.name 
-    FROM Device
-    JOIN DeviceOwners ON Device.`dev-eui` = DeviceOwners.device
-    WHERE DeviceOwners.owner = %s
-    """ 
-    cursor.execute(query, (username,))
-    devices = cursor.fetchall()
-    
-    result = [{"dev-eui": device[0], "name": device[1]} for device in devices]
-    
-    return jsonify(result)
+    print(key, username)
+    return jsonify(__queryDeviceList(username))
 
 @app.route('/api/deviceData/<deveui>', methods=['GET'])
 def apiDevice_data(deveui):
@@ -1636,6 +1620,21 @@ def apiObjets_proches(deveui):
     
     return jsonify(objects),200
 
+
+
+def __queryAllDeviceEUI():
+    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    cursor = db.cursor()
+    query = """
+    SELECT Device.`dev-eui` 
+    FROM Device
+    """ 
+    cursor.execute(query, ())
+    devices = cursor.fetchall()
+    devlist = [device[0] for device in devices]
+
+    return devlist
+
 @app.route('/api/getObject/<deveui>', methods=['GET'])
 def apiGetObject(deveui):
     """
@@ -1652,6 +1651,8 @@ def apiGetObject(deveui):
 
     if deveui in objects_storage:
         return jsonify(objects_storage[deveui]), 200
+    elif deveui in __queryAllDeviceEUI():
+         return jsonify(None), 200 # device exists, but no object is seen by this device
     else:
         return jsonify({"error": "Object not found"}), 404
 
