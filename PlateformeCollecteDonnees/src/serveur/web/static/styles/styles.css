@@ -45,3 +45,7 @@ a:hover{
 .leaflet-bar a{
     color: black;
 }
+
+#update-msg {
+    background-color: white;
+}

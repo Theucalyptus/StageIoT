@@ -36,7 +36,7 @@
         <div class="menu">
             <button id="themeToggle" class="btn btn-secondary" hidden>Toggle Dark Mode</button>
             <button id="home" class="btn btn-primary mt-3 mb-3" onclick="window.location.href='/'">Home</button>
-
+            <p id="update-msg"></p>
         </div>
         <div id="map"></div>
     </div>
@@ -86,7 +86,8 @@
                                 markers[eui].unbindPopup();
                                 markers[eui].bindPopup("<b>"+name + " - " + eui+"</b><br>Latitude : "+latitude+ "<br>Longitude : "+ longitude + 
                             "<br>Last updated : " + new Date(timestamp) + "ago" + `<br>${additionalInfo}`);})
-                    }
+                    };
+                    document.getElementById("update-msg").innerHTML = "Last updated " + new Date()
                 })
                 .catch(error => console.error('Error fetching user positions:', error));
         }
