@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS DeviceOwners (
 
 
 CREATE TABLE IF NOT EXISTS Data (
-    `timestamp` DATETIME(3) PRIMARY KEY NOT NULL,
+    `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `timestamp` DATETIME(3) NOT NULL,
     `temperature` float DEFAULT NULL,
     `humidity` float DEFAULT NULL,
     `luminosity` float DEFAULT NULL,
@@ -68,9 +69,8 @@ CREATE TABLE IF NOT EXISTS Objets (
     `ìd` serial,
     `timestamp` DATETIME(3) NOT NULL,
     `eui` varchar(255) NOT NULL,
-    `x` float NOT NULL,
-    `y` float NOT NULL,
-    `z` float NOT NULL,
+    `latitude` float NOT NULL,
+    `longitude` float NOT NULL,
     `label` varchar(255) NOT NULL,
     FOREIGN KEY (`eui`) REFERENCES Device (`dev-eui`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -80,9 +80,3 @@ CREATE TABLE IF NOT EXISTS Objets (
 
 INSERT INTO Users (username, password, role) VALUES ('a', '$2b$12$MF83CvvYYxd6QSOb4SPm4.m4PXghwwRncpURAro7sfs2AAkZ6ORuW', 'admin');
 
---   Ajout Capteur   --
---   Creer une nouvelle table pour les capteurs --
---   Pour plus de fonctionnalitées, il est possible de rajouter des colonnes dans la table Data   --
-
-
--- Fin ajout Capteur --

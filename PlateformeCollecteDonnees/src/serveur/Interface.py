@@ -45,20 +45,9 @@ def save_DB(data,id=0):
                 
             case 3 :
                 table = "Obstacles"
-                
                 # Ajouter les données à la base de données
-                query = "INSERT INTO Objets (timestamp, eui, x, y, z, label) VALUES (%(timestamp)s, %(eui)s, %(x)s, %(y)s, %(z)s, %(label)s)"
+                query = "INSERT INTO Objets (timestamp, eui, latitude, longitude, label) VALUES (%(timestamp)s, %(eui)s, %(latitude)s, %(longitude)s, %(label)s)"
                 
-                
-            
-            #### Ajouts capteurs ####
-            # ajouter une nouvelle condition pour vérifier le format de vos messages
-            # créer la query pour vos capteurs
-
-            #### Fin Ajouts capteurs ####
-                    
-        # print(query,data)
-        # print(data)
         if query != "":
             db_cursor.execute(query,data)
             #print(db_cursor)
@@ -120,7 +109,7 @@ def IP_msg_handler(msg):
     if len(res)!=0:
         save_DB(data, 2)
     else:
-        print("device "+device+" not registered")
+        print("device "+device+" not registered, ignoring.")
     
     
 

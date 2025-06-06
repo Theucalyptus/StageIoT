@@ -271,14 +271,12 @@ def post_data():
             # Ajouter les objets au cache et à la base de données
             for i in objects[1:]:
                 obj = i.split(',')
-                if len(obj) == 4:
+                if len(obj) == 3:
                     object = {}
                     object["timestamp"]=timestamp
-                    object["x"] = float(obj[0])
-                    object["y"] = float(obj[1])
-                    object["z"] = float(obj[2])
-                    object['label'] = obj[3]
-                        
+                    object["latitude"] = float(obj[0])
+                    object["longitude"] = float(obj[1])
+                    object['label'] = obj[2]
                     data = object.copy()
                     data['eui']=eui
                     # Ajouter les données à la base de données
@@ -419,6 +417,11 @@ def get_recent_data():
         except IndexError:
             temp[k]['name'] = "unkown"
     
+    # debug
+    for k in data_storage.keys():
+        temp[k] = data_storage[k][-1]
+
+
     return jsonify(temp)
 
 def data_labels_to_json(data,table):
@@ -435,9 +438,8 @@ def data_labels_to_json(data,table):
     label = [desc[i][0] for i in range(len(desc))]
     for d in data:
         mesure={}
-        mesure['timestamp']=d[0].timestamp()*1000
-        
-        for i in range(1,len(d)-1):
+        mesure['timestamp']=d[1].timestamp()*1000
+        for i in range(2,len(d)-1):
             mesure[label[i]]=d[i]
         result.append(mesure)
     return result
@@ -1167,7 +1169,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
     # Distance en mètres
     distance = R * c
-
+    print(lat1, lon1, lat2, lon2, distance)
     return distance
 
 
@@ -1212,7 +1214,7 @@ def __getNearbyObjects(eid, size):
     for nlist in neighbours:
         neighbour = nlist[0]
         if neighbour in objects_storage:
-            distance = calculate_distance(latitude, longitude, objects_storage[neighbour][0]['x'], objects_storage[neighbour][0]['y'])
+            distance = calculate_distance(latitude, longitude, objects_storage[neighbour][0]['latitude'], objects_storage[neighbour][0]['longitude'])
             objects[neighbour] = objects_storage[neighbour]
             distances[neighbour] = distance
 
@@ -1635,12 +1637,12 @@ def apiObjets_proches(deveui):
     return jsonify(objects),200
 
 @app.route('/api/getObject/<deveui>', methods=['GET'])
-def apiGetObjects(deveui):
+def apiGetObject(deveui):
     """
-    Retrieve objects from the objects_storage based on the given eui.
+    Retrieve all objects identified by a device from the objects_storage, based on the device id (eui).
 
     Args:
-        deveui (str): The deveui of the object to retrieve.
+        deveui (str): The deveui of the device.
 
     Returns:
         tuple: A tuple containing the JSON response and the HTTP status code.
