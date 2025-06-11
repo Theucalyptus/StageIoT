@@ -21,7 +21,7 @@ class TCPServer:
 
 
     def __recv_callback(self, data):
-        logger.info("received : " + data)
+        logger.info("received : " + str(data))
         self.q_out.put(data)   
 
     def _send_worder(self):
@@ -44,7 +44,7 @@ class TCPServer:
                     self.__recv_callback(data)
             except Exception as e:
                 logger.debug("TODO: socket error handling")
-                logger.critical(str(e))
+                logger.critical(e, stack_info=True, exc_info=True)
 
     def run(self):
         self.thread = threading.Thread(target=self.__run, args=())
