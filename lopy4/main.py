@@ -73,7 +73,7 @@ def LoRa_service(Q_out):
 
 ####### UART Service #######
 def UART_service(Q_out):
-    uart = UART(1, baudrate=115200, pins=["P12", "P11"]) # Tx (green): P12, Rx (yellow) : P11
+    uart = UART(1, baudrate=115200, pins=["P11", "P10"]) # Tx (green): P11, Rx (yellow) : P10
     oldTimer = time.time() # timer pour le uart heartbeat
     while True:
         time.sleep(5)
