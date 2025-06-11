@@ -1,5 +1,6 @@
 import socket
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +31,11 @@ class TCPServer:
                 logger.info("sending " + msg)
                 self.client.send(msg)
 
-    def run(self):
+    def __run(self):
         logger.info("tcp socket listening on port " + str(PORT))
         while True:
             client, addr = self.serveur.accept()
-            logger.info("connected with " + addr)
+            logger.info("connected with " + str(addr))
             self.client = client
             self.client_addr = addr
             try:
@@ -42,4 +43,9 @@ class TCPServer:
                     data = client.recv(1024)
                     self.__recv_callback(data)
             except Exception as e:
+                logger.debug("TODO: socket error handling")
                 logger.critical(str(e))
+
+    def run(self):
+        self.thread = threading.Thread(target=self.__run, args=())
+        self.thread.start()

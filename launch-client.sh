@@ -24,7 +24,6 @@ else
   else
     echo "A venv was found, activating..."
     source ./venv/bin/activate
-    which python
   fi
 fi
 
@@ -32,11 +31,10 @@ fi
 which python
 
 ## Network Setup
+echo -e "If not running for debug, remember to uncomment the network config !"
 #sudo cp hotspot.nmconnection /etc/NetworkManager/system-connections/hotspot.nmconnection
 #sudo nmcli radio wifi on
 #sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
-
-
 
 # launching the main program
 python main.py
