@@ -31,7 +31,7 @@ La caméra OAK-D permet de facilement faire de la reconnaissance d'image (avec l
 ## Installation
 ### Docker Compose
 ```bash
-    ./launch.sh
+    ./launch-serveur.sh
 ```
 ### Manuellement
 - Avoir mySQL/mariaDB installé, root nopassword, màj config.conf en conséquence
@@ -40,7 +40,7 @@ La caméra OAK-D permet de facilement faire de la reconnaissance d'image (avec l
 - Dans le dossier PlatformeCollecteDonnees/src/serveur, lancer la commande `python main.py`
 
 ## Configuration
-Dans `PlatformeCollecteDonnees/src/{client ou serveur}/config.conf`, il est possible de configurer les endpoints réseaux
+Dans `seuveur/config.conf`, il est possible de configurer les endpoints réseaux
 
 ## Utilisation Client
 1. Brancher une esp et téléverser son programme 

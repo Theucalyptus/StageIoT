@@ -8,7 +8,7 @@ else
 echo "Docker is running OK" 
 fi
 
-cd PlateformeCollecteDonnees/src/ || exit
+cd serveur/ || exit
 
 echo "Lancemement du serveur (mySQL + Web UI/API via Docker Compose)"
 docker compose up --build --remove-orphans

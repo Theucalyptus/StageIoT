@@ -4,6 +4,8 @@
 *.pyc
 
 
+client/old/
+
 # VSCODE
 .vscode
 *.code-workspace

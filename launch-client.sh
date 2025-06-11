@@ -6,7 +6,7 @@ echo "One option is to use the mysql docker container provided with the server"
 
 
 
-cd PlateformeCollecteDonnees/src/client || exit
+cd client || exit
 
 if [[ "$VIRTUAL_ENV" != "" ]]
 then
@@ -30,5 +30,13 @@ fi
 
 # should be in a venv now, sanity check 
 which python
+
+## Network Setup
+#sudo cp hotspot.nmconnection /etc/NetworkManager/system-connections/hotspot.nmconnection
+#sudo nmcli radio wifi on
+#sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+
+
+
 # launching the main program
 python main.py
