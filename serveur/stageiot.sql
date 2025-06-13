@@ -6,11 +6,12 @@
 -- DROP TABLE IF EXISTS Obstacles;
 
 CREATE TABLE IF NOT EXISTS Device (
-    `dev-eui` varchar(255) NOT NULL PRIMARY KEY,
+    `device-id` varchar(255) NOT NULL PRIMARY KEY,
     `name` varchar(255) NOT NULL,
     `password` varchar(255) NOT NULL,
     `status` varchar(255) NOT NULL DEFAULT 'public',
-    `description` varchar(500) DEFAULT NULL
+    `description` varchar(500) DEFAULT NULL,
+    `lora-dev-eui` varchar(255) DEFAULT NULL
 )ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS DeviceOwners (
     `device` varchar(255) NOT NULL,
     `super-owner` tinyint(1) NOT NULL DEFAULT 0,
     FOREIGN KEY (`owner`) REFERENCES Users(`username`),
-    FOREIGN KEY (`device`) REFERENCES Device(`dev-eui`)
+    FOREIGN KEY (`device`) REFERENCES Device(`device-id`)
 )ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 
 
@@ -55,7 +56,7 @@ CREATE TABLE IF NOT EXISTS Data (
     `azimuth` float DEFAULT NULL,
     `distance_recul` float DEFAULT NULL,
     `source` varchar(255) NOT NULL,
-    FOREIGN KEY (`source`) REFERENCES Device (`dev-eui`)
+    FOREIGN KEY (`source`) REFERENCES Device (`device-id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE IF NOT EXISTS Auth_Token (
@@ -72,7 +73,7 @@ CREATE TABLE IF NOT EXISTS Objets (
     `latitude` float NOT NULL,
     `longitude` float NOT NULL,
     `label` varchar(255) NOT NULL,
-    FOREIGN KEY (`eui`) REFERENCES Device (`dev-eui`)
+    FOREIGN KEY (`eui`) REFERENCES Device (`device-id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 

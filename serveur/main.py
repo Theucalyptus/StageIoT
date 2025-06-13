@@ -73,7 +73,8 @@ def init_db():
         # Import tables (if they dont exist yet)
         
         path_setup_DB = os.path.join(__file__.rsplit(os.path.sep, 1)[0], Config['db_init_file']+".sql")
-        sql=open(path_setup_DB)
+        print("DB setup file path", path_setup_DB)
+        sql=open(path_setup_DB, 'r')
         cursor.execute(sql.read())
         
         db=mydb
@@ -82,8 +83,6 @@ def init_db():
     except mysql.connector.errors.ProgrammingError as e :
         print(e)
         exit(1)
-
-
 
 def init_config():
     
@@ -140,8 +139,6 @@ def run_server():
         
         sys.exit()
     
-
-
 def main():
 
     """
@@ -155,7 +152,6 @@ def main():
     init_config()
     init_db()
     run_server()
-
 
 if __name__ == "__main__":
     main()

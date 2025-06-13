@@ -10,22 +10,16 @@ import requests
 db : mysql.connector.MySQLConnection
 db_cursor : mysql.connector.abstracts.MySQLCursorAbstract
 Config = {}
-data_format = { 'eui' : None, 'timestamp':"", 'luminosity':None, 'pressure':None, 'temperature':None,
-                'longitude':None, 'latitude':None, 'altitude':None, 'angle':None, 
-                'vitesse_angulaire_X':None, 'vitesse_angulaire_Y':None, 'vitesse_angulaire_Z':None,
-                'acceleration_X':None, 'acceleration_Y':None, 'acceleration_Z':None,
-                'azimuth':None, 'distance_recul':None, 'presence':None , 'humidite':None,  'distance_recul':None}
 
-
-def save_DB(data,id=0):
+def save_sample_DB(data):
     global db, db_cursor
     try :
-        # db_cursor.execute("show tables")
-        # print(db_cursor)
-        # utils.print_SQL_response(db_cursor)
+        print("TODO: save_DB", data)
+        return 
+
         query = ""
         data['timestamp']=datetime.datetime.fromtimestamp(data['timestamp'])
-        # print(data)
+
         match id :
             case 2 :
                 table = "Data"
@@ -51,20 +45,12 @@ def save_DB(data,id=0):
                 
         if query != "":
             db_cursor.execute(query,data)
-            #print(db_cursor)
             db.commit()
     except ValueError as e :
         print(e)
 
 def data_LoRa_handler(message,device):
-    #id = int(message[0],base=16)
-    message = message[0]+device+"," + message[1:]
-
-    # print(message)
-    #if id in range(0,16):
-        #print(data)
     requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=message)
-        # save_DB(data,id)
 
 
 def LoRa_msg_handler(msg):
@@ -90,32 +76,31 @@ def LoRa_msg_handler(msg):
     except (RuntimeError,KeyError) as e :
         print("ERROR", msg.playload, e)
 
-def IP_msg_handler(msg):
-    # print(msg)
+def IP_msg_handler(data_sample):
+
+    # data = data_format
+    # for key in msg.keys():
+    #     data[key]=msg[key]
+    # data['timestamp']= int(data['timestamp'])/1000
+    # assert(data['timestamp']<=datetime.datetime.now().timestamp())
     
-    data = data_format
-    for key in msg.keys():
-        data[key]=msg[key]
-    data['timestamp']= int(data['timestamp'])/1000
-    # print(data)
-    assert(data['timestamp']<=datetime.datetime.now().timestamp())
+    
     db=mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor=db.cursor(buffered=True)
 
-    device = data["eui"]
-    query = "SELECT * FROM Device WHERE `dev-eui`=%s"
+    device = data_sample["device-id"]
+    query = "SELECT * FROM Device WHERE `device-id`=%s"
     cursor.execute(query,(device,))
     res = cursor.fetchall()
-    # print(res)
     if len(res)!=0:
-        save_DB(data, 2)
+        save_sample_DB(data_sample)
     else:
         print("device "+device+" not registered, ignoring.")
     
     
 
 
-def Ifnode(Q_Lora : Queue, Q_4G : Queue, Config_):
+def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
     global db, db_cursor, Config
     print("Starting Interface node")
     Config=Config_
@@ -125,11 +110,12 @@ def Ifnode(Q_Lora : Queue, Q_4G : Queue, Config_):
     db_cursor.execute(db_query)
     
     while True:
-        while Q_Lora.empty() and Q_4G.empty():
+        while Q_Lora.empty() and Q_web.empty():
             time.sleep(0.002)
         if not Q_Lora.empty():
             message = Q_Lora.get()
             LoRa_msg_handler(message)
-        if not Q_4G.empty():
-            message = Q_4G.get()
+        if not Q_web.empty():
+            message = Q_web.get()
             IP_msg_handler(message)
+

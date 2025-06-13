@@ -20,8 +20,8 @@
                 <form method="POST" action="{{ url_for('register_device') }}">
                     {{ form_associate.hidden_tag() }}
                     <div class="form-group">
-                        {{ form_associate.deveui.label(class="form-label") }}
-                        {{ form_associate.deveui(class="form-control") }}
+                        {{ form_associate.deviceid.label(class="form-label") }}
+                        {{ form_associate.deviceid(class="form-control") }}
                     </div>
                     <div class="form-group">
                         {{ form_associate.password.label(class="form-label") }}
@@ -39,8 +39,8 @@
                 <form method="POST" action="{{ url_for('register_device') }}">
                     {{ form.hidden_tag() }}
                     <div class="form-group">
-                        {{ form.deveui.label(class="form-label") }}
-                        {{ form.deveui(class="form-control") }}
+                        {{ form.deviceid.label(class="form-label") }}
+                        {{ form.deviceid(class="form-control") }}
                     </div>
                     <div class="form-group">
                         {{ form.name.label(class="form-label") }}
@@ -53,6 +53,10 @@
                     <div class="form-group">
                         {{ form.confirm_password.label(class="form-label") }}
                         {{ form.confirm_password(class="form-control") }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.lora_dev_eui.label(class="form-label") }}
+                        {{ form.lora_dev_eui(class="form-control") }}
                     </div>
                     <div class="form-group">
                         {{ form.submit2(class="btn btn-primary mt-3") }}
