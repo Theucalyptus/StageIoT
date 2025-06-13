@@ -77,13 +77,16 @@ def UART_service(Q_out):
     oldTimer = time.time() # timer pour le uart heartbeat
     while True:
         time.sleep(5)
-        data = uart.read(uart.any()).decode('utf-8').split('\n')
-        print("UART: rx :", data)
-        for msg in data:
-            if len(msg)>1:
-                if Q_out.full():
-                    Q_out.get()
-                Q_out.put(msg)
+        try:
+            data = uart.read(uart.any()).decode('utf-8').split('\n')
+            print("UART: rx :", data)
+            for msg in data:
+                if len(msg)>1:
+                    if Q_out.full():
+                        Q_out.get()
+                    Q_out.put(msg)
+        except UnicodeError:
+            print("UART: rx UnicodeError")
 
         if (time.time() > oldTimer + 10):
             msg = "heartbeat "+dev_eui.lower()+"\n"
