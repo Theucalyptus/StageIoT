@@ -99,7 +99,7 @@ def IP_msg_handler(msg):
     data['timestamp']= int(data['timestamp'])/1000
     # print(data)
     assert(data['timestamp']<=datetime.datetime.now().timestamp())
-    db=mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db=mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor=db.cursor(buffered=True)
 
     device = data["eui"]
@@ -119,7 +119,7 @@ def Ifnode(Q_Lora : Queue, Q_4G : Queue, Config_):
     global db, db_cursor, Config
     print("Starting Interface node")
     Config=Config_
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"])
     db_cursor = db.cursor(buffered=True)
     db_query = "USE "+ utils.sql_var(Config["db_name"])
     db_cursor.execute(db_query)

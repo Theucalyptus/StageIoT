@@ -9,11 +9,8 @@ import web.IP as IP
 import utils
 import os
 
-Config={"db_name":"plateformeIoT","SQL_username":"root","db_init_file":"stageiot", 
-        "APP_username":"stm32lora1@ttn" , "APP_password":"NNSXS.U6KN7IY6K2MWWA54MKJVCON3BFH2B4GNBVYC7VY.F33QNU3IFQ63X7XOBVHS7AU4O2DA4MPPC6M3EXXTEZHKGSZAUALA", 
-        "APP_hostname":"eu1.cloud.thethings.network", "APP_port":"8883",
-        "server_host":'0.0.0.0',"server_port":'5000'
-        }
+Config={}
+
 db : mysql.connector.MySQLConnection
 
 def init_db():
@@ -29,7 +26,7 @@ def init_db():
     try : 
         #connect to mySQL
 
-        mydb = mysql.connector.connect(host="localhost", user=Config["SQL_username"])
+        mydb = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"])
         cursor = mydb.cursor()
         # Seaching for DB
         liste_db=[]
@@ -103,27 +100,15 @@ def init_config():
     # parsing each line
     for line in conf:
         # '=' is the center of the msg with the syntax : "<key>=<value>"
-        if '=' in line:
+        if '=' in line and line[0] != '#':
             k,v=line.split('=')
             v= v.strip() # on retire les espaces
             v.lstrip('"')
             v.rstrip('"')
-            for key in Config.keys():
-                # if the key is in the Config keys we take it's value
-                if k==key and v!="":
-                    Config[key]=v
+            Config[k]=v
                 
-    # print(Config)
+    #print(Config)
 
-def init_server():
-
-    """
-    Initialise the server config and database.
-    """
-
-    init_config()
-    init_db()
-    
 def run_server():
 
     """
@@ -167,7 +152,8 @@ def main():
     """
 
     print("Starting Web Server")
-    init_server()
+    init_config()
+    init_db()
     run_server()
 
 

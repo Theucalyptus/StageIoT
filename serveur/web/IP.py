@@ -80,7 +80,7 @@ def verify_token(t):
     Returns:
     bool: True if the token is valid, False otherwise.
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
     cursor = db.cursor()
     token=session.get('token')
     query = "SELECT * FROM Auth_Token WHERE token = %s AND `date-exp` > %s"
@@ -121,7 +121,7 @@ def check_user_token():
     """
     token = session.get('token')
     
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     query = "SELECT user FROM Auth_Token WHERE token=%s"
@@ -327,7 +327,7 @@ def get_data():
     data = {}
     
     # Se connecter à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
     cursor = db.cursor()
 
     # Vérifier si l'utilisateur est connecté
@@ -379,7 +379,7 @@ def get_recent_data():
         A JSON response containing the most recent data from the data storage, with convenient name added.
     """
 
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
     cursor = db.cursor()
     temp = {}
 
@@ -404,7 +404,7 @@ def data_labels_to_json(data,table):
     result = []
 
     # Connexion à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
     cursor = db.cursor()
 
     # Récupérer les labels des données
@@ -444,7 +444,7 @@ def get_euiList():
     username = session.get('username')
     
     # Se connecter à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     # Récupérer la liste des devices associés à l'utilisateur
@@ -539,7 +539,7 @@ def download():
                 selected_fields.append(f)
         
         # Se connecter à la base de données
-        db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+        db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
         cursor = db.cursor()
         
         # Convert datetime-local input to datetime object
@@ -624,7 +624,7 @@ def login():
         If login is unsuccessful, renders the login page with an error message.
     """
     # Connexion à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     # Supprimer les tokens expirés
@@ -674,7 +674,7 @@ def register():
     """
 
     # Connexion à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     form = RegistrationForm()
@@ -756,7 +756,7 @@ def register_device():
     """
 
     # Connexion à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
 
@@ -834,7 +834,7 @@ def check_device_DB(deveui,password=None):
     """
 
     # Connexion à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
     cursor= db.cursor()
 
     if password != None:
@@ -871,7 +871,7 @@ def check_link_device(deveui, username):
     """
 
     # Connexion à la base de données
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database = Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
     cursor= db.cursor()
 
     # Vérifier si l'appareil est associé à l'utilisateur
@@ -891,7 +891,7 @@ def add_device_DB(deveui, name, hashed_password):
     Returns:
         None
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = "INSERT INTO Device (`dev-eui`, name, password) VALUES (%s, %s, %s)"
     cursor.execute(query, (deveui, name, hashed_password))  # Ensure password is hashed
@@ -909,7 +909,7 @@ def add_device_user_DB(deveui, username, superowner=0):
     Returns:
         None
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = "INSERT INTO DeviceOwners (device, owner, `super-owner`) VALUES (%s, %s, %s)"
     cursor.execute(query, (deveui, username, superowner))
@@ -930,7 +930,7 @@ def deviceList():
     Redirects:
         - If the user is not logged in, redirects to the 'login' page.
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     username = session.get('username')
     if username:
@@ -970,7 +970,7 @@ def edit_device(deveui):
     if username:
         form = DeviceEditForm()
         
-        db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+        db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
         cursor = db.cursor()
         query = "SELECT name, description FROM Device WHERE `dev-eui` = %s"
         cursor.execute(query,(deveui,))
@@ -1023,7 +1023,7 @@ def edit_dev(deveui,name,password,description):
         username (str): The name of the user you want to delete the device from.
 
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     
     data = {}
@@ -1056,7 +1056,7 @@ def check_superowner(deveui, username):
     Returns:
         bool: True if the device and owner combination has super-owner privileges, False otherwise.
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = "SELECT `super-owner` FROM DeviceOwners WHERE device = %s AND owner=%s"
     cursor.execute(query, (deveui, username))
@@ -1091,7 +1091,7 @@ def __delete_device(deveui,username):
         username (str): The name of the user you want to delete the device from.
 
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     # Supprimer la liaison entre l'appareil et l'utilisateur
     cond =(check_link_device(deveui,username) == 1)
@@ -1153,7 +1153,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 def __getNearbyObjects(eid, size):
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     neighbours=[]
     query = """
@@ -1225,7 +1225,7 @@ def get_api_keys():
     Returns:
         A JSON response containing the API keys.
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     username = ''
     if 'token' in session:
@@ -1245,7 +1245,7 @@ def generate_api_key():
     Returns:
         A JSON response containing the generated API key.
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     username = ''
     if 'token' in session:
@@ -1278,7 +1278,7 @@ def get_user_from_api_key(api_key):
         str: The username associated with the API key if it is valid.
         None: If the API key is invalid or not found in the database.
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = "SELECT username FROM Users WHERE `api-key` = %s"
     cursor.execute(query, (api_key,))
@@ -1291,7 +1291,7 @@ def get_user_from_api_key(api_key):
 
 
 def __queryDeviceList(username):
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = """
     SELECT Device.`dev-eui`, Device.name 
@@ -1332,7 +1332,7 @@ def apiDevice_data(deveui):
         flask.Response: A JSON response containing the retrieved data.
 
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     key = request.args.get('key')
     username = get_user_from_api_key(key)
@@ -1397,7 +1397,7 @@ def publicApiDevice_data(deveui):
         flask.Response: A JSON response containing the retrieved data.
 
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     key = request.args.get('key')
@@ -1447,7 +1447,7 @@ def apiRegisterDevice():
     Returns:
     None
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     deveui = request.args.get('deveui')
@@ -1518,7 +1518,7 @@ def apiNeighbourList(deveui):
         list: A list of neighboring sources.
 
     """
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     key = request.args.get('key')
@@ -1576,7 +1576,7 @@ def apiObjets_proches(deveui):
     if username is None:
         return jsonify({"error": "Invalid API key"}), 401
 
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
 
     size = request.args.get('size', 0.0007)
@@ -1624,7 +1624,7 @@ def apiObjets_proches(deveui):
 
 
 def __queryAllDeviceEUI():
-    db = mysql.connector.connect(host="localhost", user=Config["SQL_username"], database=Config["db_name"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = """
     SELECT Device.`dev-eui` 
@@ -1678,12 +1678,13 @@ def IPnode(Q_output: Queue, config):
     global Q_out, Config
     Config=config
     Q_out=Q_output
-    db = mysql.connector.connect(host="localhost", user=config["SQL_username"])
+    db = mysql.connector.connect(host=Config["SQL_host"], user=config["SQL_username"], password=Config["SQL_password"])
     app.app_context().push()
     with app.app_context():
         db_cursor = db.cursor()
         db_query = "USE "+ config["db_name"]
         db_cursor.execute(db_query)
+        print(config['server_host'], config['server_port'])
         app.run(host=config['server_host'], port=int(config['server_port']), debug=False)
 
 
