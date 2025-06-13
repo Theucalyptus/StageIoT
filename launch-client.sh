@@ -31,10 +31,18 @@ fi
 which python
 
 ## Network Setup
-echo -e "If not running for debug, remember to uncomment the network config !"
-#sudo cp hotspot.nmconnection /etc/NetworkManager/system-connections/hotspot.nmconnection
-#sudo nmcli radio wifi on
-#sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+if ! nmcli -g GENERAL.STATE c s Hotspot | grep -q -E '\bactiv'; then
+  ecsudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+ho -e "Switching wifi on"
+  sudo nmcli radio wifi on
+  echo -e "Waiting 5sec for wifi to come online"
+  sleep 5
+  echo -e "Enabling wifi hotspot"
+  sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+else
+  echo -e "Wifi hotspot is already on. skipping"
+fi
+
 
 # launching the main program
 python main.py

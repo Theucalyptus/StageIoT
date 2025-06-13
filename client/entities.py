@@ -51,7 +51,7 @@ class Object(Entity):
         print(ratio)
         return ratio > SIMILARITY_COEF
 
-class Device(Entity):
+class Vehicule(Entity):
 
     def __init__(self):
         super().__init__("device", 0, 0)

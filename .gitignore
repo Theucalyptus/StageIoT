@@ -5,6 +5,7 @@
 
 
 client/old/
+client/logs/
 
 # VSCODE
 .vscode

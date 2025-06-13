@@ -1,57 +1,70 @@
 from queue import Queue
 import logging
-import tcp as net
-import uart
-import logging
 import threading
 import time
+import json
 
-from entities import Device, Object, ObjectSet
+from entities import Vehicule, Object, ObjectSet
+from buffer import Buffer
+import network
+import sensors
+
 import detection_oakd
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-### BLUETOOTH
-q_net_out, q_net_in = Queue(), Queue()
-net_service = net.TCPServer(q_net_in, q_net_out)
-net_service.run()
+## CONFIG
+TIME_BETWEEN_SAMPLES=1 # in seconds
+TIME_BETWEEN_NETWORK_SEND=10 # in seconds 
+
+DEVICE_ID="jetson1"
+
+UART_DEVICE = "/dev/ttyTHS1"
+UART_SPEED = 115200
 
 
-### UART
-UART_device = "THS1"
-UART_speed = 115200
-q_uart_out, q_uart_in = Queue(), Queue()
-#uart_service = uart.UartService(UART_device, UART_speed, q_uart_in, q_uart_out)
-#uart_service.run()
-
-## Object Detection
+## SENSORS 
+### Phone
+q_phone_out, q_phone_in = Buffer(), Queue()
+phone = sensors.Phone(q_phone_in, q_phone_out)
+### Object Dpassetection
 q_object = Queue()
 #t = threading.Thread(target=detection_oakd.ObjectDetection, args=[q_object])
 #t.start()
+### Can Bus
+q_can_out = Buffer()
+canbus = sensors.CANBus(q_can_out)
 
-### MAIN
-device = Device()
-objSet = ObjectSet()
+sensorsList = [phone, canbus]
 
+## NETWORK
+### LoRa
+q_uart_out, q_uart_in = Queue(), Buffer()
+#uart_service = network.UartService(UART_DEVICE, UART_SPEED, q_uart_in, q_uart_out)
+#uart_service.run()
+
+canbus.run()
+phone.run()
+
+message = {'device-id':DEVICE_ID, 'type':1}
 while True:
-    # process all incoming wifi msg
-    while not q_net_out.empty():
-        data = q_net_out.get()
-        msg = data.decode('utf-8').removesuffix('\n')
-        print("wifi recv", msg)
-        typ, content = int(msg[0]), msg[1:]
-        if typ == 1:
-            lat, long = content.split(',')
+    
+    time.sleep(TIME_BETWEEN_NETWORK_SEND)
+    message['timestamp'] = time.time()
 
-        print("sending to lopy via uart")
-        q_uart_in.put(data)
+    for sensor in sensorsList:
+        try:
+            sample = sensor.getLatestSample()
+            for key, value in sample.items():
+                if key != "timestamp":
+                    message[key] = value
+        except sensors.NoSampleAvailable:
+            pass
+    
+    # network input queue
+    q_uart_in.put(json.dumps(message))
 
-    # process all observed objects
-    while not q_object.empty():
-        obj = q_object.get()
-        new = objSet.addNew(obj)
-        if new:
-            print("new objectd detected", obj)
-
-    time.sleep(1)
-    objSet.printShort()
+    # DEBUG
+    print(q_uart_in.get())
+    

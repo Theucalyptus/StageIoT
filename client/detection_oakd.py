@@ -8,36 +8,15 @@ import time
 import queue
 import threading
 
-class ObjetSpatial:
-    def __init__(self, x, y, z, type_objet):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.type_objet = type_objet
+from entities import Object
 
-    def __repr__(self):
-        return f"ObjetSpatial(x={self.x}, y={self.y}, z={self.z}, type_objet='{self.type_objet}')"
-    
-    def sendingformat(self):
-        x_form = f"{str(self.x)[:6]:<6}"
-        y_form = f"{str(self.y)[:6]:<6}"
-        z_form = f"{str(self.z)[:6]:<6}"
-        label_form = f"{str(self.type_objet)[:10]:<10}"
-        return f"{x_form},{y_form},{z_form},{label_form}"
 
-    def getType(self):
-        return f"{self.type_objet}"
-
-def ObjectDetection(Q_data):
-    import sys
-        
-    object_list = []
-        
+def ObjectDetection(Q_data):      
     '''
     Spatial detection network demo.
         Performs inference on RGB camera and retrieves spatial location coordinates: x,y,z relative to the center of depth map.
     '''
-
+    import sys
 
     # Get argument first
     nnBlobPath = str((Path(__file__).parent / Path('./mobilenet-ssd_openvino_2021.4_6shave.blob')).resolve().absolute())
@@ -114,8 +93,6 @@ def ObjectDetection(Q_data):
     stereo.depth.link(spatialDetectionNetwork.inputDepth)
     spatialDetectionNetwork.passthroughDepth.link(xoutDepth.input)
 
-    old_time = time.time()
-
     # Connect to device and start pipeline
     # force usb2 only (bad cable...)
     with dai.Device(pipeline, maxUsbSpeed=dai.UsbSpeed.HIGH) as device:
@@ -186,25 +163,15 @@ def ObjectDetection(Q_data):
                 cv2.putText(frame, f"X: {int(detection.spatialCoordinates.x)} mm", (x1 + 10, y1 + 50), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
                 cv2.putText(frame, f"Y: {int(detection.spatialCoordinates.y)} mm", (x1 + 10, y1 + 65), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
                 cv2.putText(frame, f"Z: {int(detection.spatialCoordinates.z)} mm", (x1 + 10, y1 + 80), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
-
-                object = ObjetSpatial(x=detection.spatialCoordinates.x, y=detection.spatialCoordinates.y, z=detection.spatialCoordinates.z, type_objet=label)
-                object_list.append(object)
-
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), cv2.FONT_HERSHEY_SIMPLEX)
-
-            
-            uartPayload = "3"
-            for obj in object_list:
-                    if (obj.getType() in importantLabels):
-                        uartPayload += obj.sendingformat() + ";"
-            if uartPayload != "3":
-                #uartPayload = MsgToData(uartPayload)
-                Q_data.put(uartPayload)
-            time.sleep(0.1)
-            old_time = time.time()
-            object_list = []
+                
+                x, y = (detection.xmin + detection.xmax) / 2, (detection.ymin + detection.ymax) /2
+                sizeX, sizeY = detection.xmax - detection.xmin, detection.ymax - detection.ymin
+                object = Object(label, x, y, 0, sizeX, sizeY)
+                Q_data.put(object)
+    
             cv2.putText(frame, "NN fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255,255,255))
-            cv2.imshow("depth", depthFrameColor)
+            #cv2.imshow("depth", depthFrameColor)
             cv2.imshow("preview", frame)
 
             if cv2.waitKey(1) == ord('q'):
