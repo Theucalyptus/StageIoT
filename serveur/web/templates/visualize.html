@@ -28,7 +28,7 @@
         <div class="d-inline-flex flex-row">
             
             <h6 class="text-center text-nowrap mt-2" style="margin-right: 0.5em;">Device :    </h6>
-            <select id="euiSelect" class="form-select" onchange="updateEui(this.value)"></select>
+            <select id="deviceSelect" class="form-select" onchange="updateDevice(this.value)"></select>
             <h6 class="text-center text-nowrap mt-2" style="margin-left: 0.5em;margin-right: 0.5em;">Duration :    </h6>
             <select id="duration" class="form-select" onselect="updateDuration(this.value)" onchange="updateDuration(this.value)">
                 <option value="20">20 secondes</option>
@@ -50,74 +50,16 @@
             <button id="deselectAll" class="btn btn-warning mb-2">Deselect All</button>
             <div class="row">
                 <div class="col-md-6">
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="acceleration_X" name="fields" value="acceleration_X" checked>
-                        <label class="form-check-label" for="acceleration_X">Acceleration X</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="acceleration_Y" name="fields" value="acceleration_Y" checked>
-                        <label class="form-check-label" for="acceleration_Y">Acceleration Y</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="acceleration_Z" name="fields" value="acceleration_Z" checked>
-                        <label class="form-check-label" for="acceleration_Z">Acceleration Z</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="altitude" name="fields" value="altitude" checked>
-                        <label class="form-check-label" for="altitude">Altitude</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="vitesse_angulaire_X" name="fields" value="vitesse_angulaire_X" checked>
-                        <label class="form-check-label" for="vitesse_angulaire_X">Angular Velocity X</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="vitesse_angulaire_Y" name="fields" value="vitesse_angulaire_Y" checked>
-                        <label class="form-check-label" for="vitesse_angulaire_Y">Angular Velocity Y</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="vitesse_angulaire_Z" name="fields" value="vitesse_angulaire_Z" checked>
-                        <label class="form-check-label" for="vitesse_angulaire_Z">Angular Velocity Z</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="temperature" name="fields" value="temperature" checked>
-                        <label class="form-check-label" for="temperature">Temperature</label>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="angle" name="fields" value="angle" checked>
-                        <label class="form-check-label" for="angle">Angle</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="azimuth" name="fields" value="azimuth" checked>
-                        <label class="form-check-label" for="azimuth">Azimuth</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="latitude" name="fields" value="latitude" checked>
-                        <label class="form-check-label" for="latitude">Latitude</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="longitude" name="fields" value="longitude" checked>
-                        <label class="form-check-label" for="longitude">Longitude</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="luminosity" name="fields" value="luminosity" checked>
-                        <label class="form-check-label" for="luminosity">Luminosity</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="pressure" name="fields" value="pressure" checked>
-                        <label class="form-check-label" for="pressure">Pressure</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="distance_recul" name="fields" value="distance_recul" checked>
-                        <label class="form-check-label" for="distance_recul">Distance de Recul</label>
-                    </div>
-                    <div class="form-check checkbox-container">
-                        <input class="form-check-input" type="checkbox" id="humidite" name="fields" value="humidite" checked>
-                        <label class="form-check-label" for="humidite">Humidite</label>
-                    </div>
-                </div>
+                    {% if fields %}
+                        {% for field in fields %}
+                        <div class="form-check checkbox-container">
+                            <input class="form-check-input" type="checkbox" id="{{ field }}" name="fields" value="{{ field }}" checked>
+                            <label class="form-check-label" for="{{ field }}">{{ field }}</label>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        It appears we have no data from this device yet. The field list will be available as soon as the platform receives a status update from the device.
+                    {% endif %}
             </div>
         </div>
     </div>
@@ -126,24 +68,21 @@
     <script>
         const ctx = document.getElementById('dataChart').getContext('2d');
         let chart;
-        let eui ;
+        let eui;
+        let selectedDevice = new URLSearchParams(window.location.search).get('dev');
+        console.log(selectedDevice)
         let duration = document.getElementById('duration').value;
-        const fields = [
-            "acceleration_X", "acceleration_Y", "acceleration_Z",
-            "altitude", "angle", "vitesse_angulaire_X",
-            "vitesse_angulaire_Y", "vitesse_angulaire_Z",
-            "azimuth", "latitude", "longitude",
-            "luminosity", "pressure","distance_recul",
-            "temperature", "humidite"
+        const _fields = [ {% for f in fields %}
+                            "{{ f }}",
+                         {% endfor %}
         ];
-    
         function createChart() {
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     
                     labels: [],
-                    datasets: fields.map(field => ({
+                    datasets: _fields.map(field => ({
                         label: field,
                         data: [],
                         borderColor: getRandomColor(),
@@ -180,16 +119,13 @@
     
         function fetchData() {
             let updated = 0;
-            // console.log(duration);
-            fetch("/get_data?"+ new URLSearchParams({'duration':duration}))
+            fetch("/get_data?" + new URLSearchParams({'dev':selectedDevice}) + "&" + new URLSearchParams({'duration':duration}))
                 .then(response => response.json())
                 .then(data => {
-                    // console.log(data);
+                    console.log(data)
                     for (i in data)
                     {
-                        // console.log(data[i].length > 0)
-                        // console.log(new Date(data[i][0].timestamp));
-                        if (i == eui && data[i].length > 0)
+                        if (i == selectedDevice && data[i].length > 0)
                         {   
                             updateChart(data[i]);
                             updated = 1;
@@ -199,23 +135,16 @@
                     {
                         updateChart([]) 
                     }
-                    // Display raw data
-                    /*
-                    document.getElementById('dataDisplay').innerHTML = 
-                        '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-                    */
-                    
                 })
                 .catch(error => console.error('Error fetching data:', error));
         }
     
         function updateChart(data) {
-            const labels = data.map(item => new Date(item.timestamp));
-            
+
+            const labels = data.map(item => new Date(item.timestamp*1000));
             chart.data.labels = labels;
-            fields.forEach((field, index) => {
-                
-                chart.data.datasets[index].data = data.map(item => ({x: new Date(item.timestamp), y: item[field]}));
+            _fields.forEach((field, index) => {
+                chart.data.datasets[index].data = data.map(item => ({x: new Date(item.timestamp*1000), y: item[field]}));
                 chart.data.datasets[index].hidden = !document.getElementById(field).checked;
                 
             });
@@ -225,10 +154,8 @@
 
         function updateDuration(dur){
             duration = dur;
-            
         }
 
-    
         function getRandomColor() {
             const letters = '0123456789ABCDEF';
             let color = '#';
@@ -239,7 +166,7 @@
         }
     
         function updateChartVisibility() {
-            fields.forEach((field, index) => {
+            _fields.forEach((field, index) => {
                 chart.data.datasets[index].hidden = !document.getElementById(field).checked;
             });
             chart.update();
@@ -259,16 +186,16 @@
             updateChartVisibility();
         }
 
-        function updateEui(selected_eui)
+        function updateDevice(newDevice)
         {
-            eui = selected_eui;
-            console.log(eui)
-            fetchData();
+            selectedDevice = newDevice
+            // Simulate an HTTP redirect:
+            window.location.replace("/visualize?dev="+selectedDevice);
         }
     
         // Fetch data initially and then every 0.5 seconds
         fetchData();
-        const selectElement = document.getElementById("euiSelect");
+        const selectElement = document.getElementById("deviceSelect");
         
         let euiList = fetch('/get_euiList')
         .then(response => {
@@ -281,12 +208,14 @@
         .then(data => {
             // Utiliser les données pour remplir la liste déroulante
             selectElement.innerHTML = ''; // Vider les options existantes
-            // Parcourir chaque EUI dans les données reçues
-            eui = data[0][0];
             data.forEach(devices => {
                 const option = document.createElement("option");
                 option.value = devices[0];
                 option.textContent = devices[1];
+                console.log("selectedDevice", selectedDevice)
+                if (option.value == selectedDevice) {
+                    option.selected = true;
+                }
                 selectElement.appendChild(option);
             });
         })
@@ -294,7 +223,7 @@
             console.error('There was a problem with the fetch operation:', error);
         });
         createChart();
-        setInterval(fetchData, 500);
+        setInterval(fetchData, 1000);
     
         // Add event listeners to checkboxes
         document.querySelectorAll('input[name="fields"]').forEach(checkbox => {

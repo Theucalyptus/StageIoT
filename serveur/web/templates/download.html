@@ -16,7 +16,14 @@
             <button class="btn btn-primary" onclick="window.location.href='/'">Home</button>
         </div>
         </br>
-        <form method="POST" action="/download">
+        <div>
+            <h2>Devices : </h2>
+            {% for f in devices %}
+                <button class="btn btn-primary " onclick="window.location.href='/download?dev={{ f['device-id'] }}'">{{ f.name }}</button>
+            {% endfor %}
+            <h5>Selected Device : {{ selectedDevice }}</h3>
+        </div>  
+        <form method="POST" action="/download?dev={{ selectedDevice }}">
             <div class="mb-3">
                 <label for="start_time" class="form-label">Start Time</label>
                 <input type="datetime-local" id="start_time" name="start_time" class="form-control" required>
@@ -28,24 +35,9 @@
             <div class="mb-3">
                 <label for="fields" class="form-label">Select Fields</label>
                 <select id="fields" name="fields" class="form-select" multiple required style="height: 40vh;">
-                    <option value="timestamp">Timestamp</option>
-                    <option value="temperature">Temperature</option>
-                    <option value="humidity">Humidity</option>
-                    <option value="luminosity">Luminosity</option>
-                    <option value="presence">Presence</option>
-                    <option value="pressure">Pressure</option>
-                    <option value="longitude latitude">Position GPS</option> 
-                    <option value="altitude">Altitude</option>
-                    <option value="angle">Angle</option>
-                    <option value="vitesse_angulaire_X">Vitesse Angulaire X</option>
-                    <option value="vitesse_angulaire_Y">Vitesse Angulaire Y</option>
-                    <option value="vitesse_angulaire_Z">Vitesse Angulaire Z</option>
-                    <option value="acceleration_X">Acceleration X</option>
-                    <option value="acceleration_Y">Acceleration Y</option>
-                    <option value="acceleration_Z">Acceleration Z</option>
-                    <option value="azimut">Azimut</option>
-                    <option value="distance_recul">Distance Recul</option>
-                    <option value="source">Source</option>
+                    {% for f in fields %}
+                        <option value="{{ f }}">{{ f }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <button type="submit" class="btn btn-primary">Download</button>

@@ -33,32 +33,6 @@ CREATE TABLE IF NOT EXISTS DeviceOwners (
     FOREIGN KEY (`device`) REFERENCES Device(`device-id`)
 )ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 
-
-
-CREATE TABLE IF NOT EXISTS Data (
-    `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `timestamp` DATETIME(3) NOT NULL,
-    `temperature` float DEFAULT NULL,
-    `humidity` float DEFAULT NULL,
-    `luminosity` float DEFAULT NULL,
-    `presence` tinyint(1) DEFAULT NULL,
-    `pressure` float DEFAULT NULL,
-    `longitude` float DEFAULT NULL,
-    `latitude` float DEFAULT NULL,
-    `altitude` float DEFAULT NULL,
-    `angle` float DEFAULT NULL,
-    `vitesse_angulaire_X` float DEFAULT NULL,
-    `vitesse_angulaire_Y` float DEFAULT NULL,
-    `vitesse_angulaire_Z` float DEFAULT NULL,
-    `acceleration_X` float DEFAULT NULL,
-    `acceleration_Y` float DEFAULT NULL,
-    `acceleration_Z` float DEFAULT NULL,
-    `azimuth` float DEFAULT NULL,
-    `distance_recul` float DEFAULT NULL,
-    `source` varchar(255) NOT NULL,
-    FOREIGN KEY (`source`) REFERENCES Device (`device-id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
 CREATE TABLE IF NOT EXISTS Auth_Token (
     `token` varchar(255) PRIMARY KEY,
     `user` varchar(255) NOT NULL,

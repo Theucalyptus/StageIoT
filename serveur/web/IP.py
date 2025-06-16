@@ -32,8 +32,6 @@ app._static_folder = './static/'
 app.secret_key = 'your_secret_key'
 Q_out: Queue
 data_storage = {}
-# DEBUG ONLY
-#data_storage = {"70b3d5499809d4ea" : [{"eui":"70b3d5499809d4ea", "timestamp":1900, "latitude":43.6, "longitude":1.4}, {"eui":"70b3d5499809d4ea", "timestamp":1910, "latitude":43.6, "longitude":1.45}]}
 objects_storage = {}
 Config = {}
 
@@ -166,10 +164,9 @@ def post_data():
         raw_data= raw_data.removesuffix("\n")
         try:
             data = json.loads(raw_data)
+            print(data)
             if data['type'] == 1:
-                print("IP.post_data", data)
-                print("TODO: some form of validation")
-                Q_out.put(data)
+                Q_out.put(data.copy())
                 add_data_to_cache(data)
                 return jsonify({"status": "success"}), 200
             else:
@@ -179,8 +176,6 @@ def post_data():
     else:
         return jsonify({"status": "error", "message": "Invalid method"}), 400 # not a POST request
             
-    
-
 
 def add_data_to_cache(data):
     """
@@ -194,6 +189,7 @@ def add_data_to_cache(data):
     """
    
     global data_storage
+
     # Verifier si l'eui est déjà dans le cache
     if data['device-id'] not in data_storage:
         # Ajourter l'eui au cache
@@ -205,29 +201,18 @@ def add_data_to_cache(data):
     # Supprimer les données de plus d'une heure (amélioration: ne pas faire tous les devices a chaque fois)
     for device in data_storage:
         seuil=0
-        while (data_storage[device][-1]['timestamp']-data_storage[device][seuil]['timestamp'])/1000 > 61:
+        while (data_storage[device][-1]['timestamp']-data_storage[device][seuil]['timestamp']) > 3600:
             seuil+=1
 
         data_storage[device]=data_storage[device][seuil:] 
 
-
 @app.route('/get_data', methods=['GET'])
 @auth.login_required
 def get_data():
-    """
-        This function retrieves data from a MySQL database based on the provided parameters.
 
-        Args:
-            None
-
-        Returns:
-            A JSON response containing the retrieved data.
-
-        Raises:
-            None
-    """
     # Récupérer les paramètres de la requête
     duration = request.args.get('duration')
+    device = request.args.get('dev')
 
     data = {}
     
@@ -249,28 +234,32 @@ def get_data():
             if duration != None and float(duration) > 60:
                 duration = float(duration)
                 if (device in data_storage) and len(data_storage[device])>0:
-                    args = (device,datetime.fromtimestamp(data_storage[device][-1]['timestamp']/1000-duration-1))
+                    # on prend la période à partir de la dernière donnée connue
+                    args = (datetime.fromtimestamp(data_storage[device][-1]['timestamp']-duration-1),)
                 else : 
-                    args = (device,datetime.fromtimestamp(datetime.now().timestamp()-duration-1))
+                    # sinon on prend à partir du temps courant
+                    args = (datetime.fromtimestamp(datetime.now().timestamp()-duration-1),)
                 
                 # Récupérer les données de la base de données
-                query = "SELECT * FROM Data WHERE source= %s and timestamp > %s"
+                query = "SELECT * FROM " + device + " WHERE timestamp > %s"
                 cursor.execute(query,args)
                 result = cursor.fetchall()
-                data[device]=data_labels_to_json(result,"Data")
+                data[device]=data_labels_to_json(result,device)
 
             # Si possible récupérer les données de la mémoire cache
             else:
                 data[device]=[]
                 if device in data_storage:
                     if duration != None:
+                        # on prend les infos de la durée demandée
                         duration = float(duration)
                         info = data_storage[device]
                         seuil = 0
-                        while (info[-1]['timestamp']-info[seuil]['timestamp'])/1000 > duration+1:
+                        while (info[-1]['timestamp']-info[seuil]['timestamp']) > duration+1:
                             seuil+=1
                         data[device]+=info[seuil:]
                     else :
+                        # on prend tout
                         data[device]+=data_storage[device]
     return jsonify(data) 
 
@@ -291,7 +280,7 @@ def get_recent_data():
     for k in data_storage.keys():
         temp[k] = data_storage[k][-1] # get last data for device k
         query = "SELECT name FROM Device WHERE `device-id` = %s;"
-        cursor.execute(query, [temp[k]['eui']])
+        cursor.execute(query, [temp[k]['device-id']])
         try:
             res = cursor.fetchall()[0][0]
             temp[k]['name'] = res
@@ -381,7 +370,19 @@ def visualize():
     Returns:
         The rendered visualize.html template.
     """
-    return render_template('visualize.html')
+
+    selectedDevice = request.args.get('dev', None)
+    if selectedDevice==None or selectedDevice == "":
+        devices = __queryDeviceList(session.get('username'))
+        defaultDevice = devices[0]['device-id']
+        return redirect("/visualize?dev="+defaultDevice)
+    else:
+        fields = __queryAvailableFields(selectedDevice)
+        try:
+            fields.remove("timestamp")
+        except ValueError:
+            pass
+        return render_template('visualize.html', selectedDevice=selectedDevice, fields=fields)
 
 @app.route('/downloadall')
 @auth.login_required
@@ -420,7 +421,19 @@ def downloadall():
         download_name=f'iot_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     )
 
+
+def __queryAvailableFields(deviceID):
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
+    cursor = db.cursor()
+
+    query = "SHOW COLUMNS FROM " + deviceID + ";"
+    cursor.execute(query)
+    res = cursor.fetchall()
+    excluded = ['id']
+    return [c[0] for c in res if c[0] not in excluded]
+
 @app.route('/download', methods=['GET', 'POST'])
+@auth.login_required
 def download():
     """
     Handle the download route for retrieving data from the database and generating a CSV file.
@@ -428,8 +441,16 @@ def download():
     Returns:
         Response: Flask response object containing the generated CSV file as an attachment.
     """
+    
+    # DEVICE
+    deviceid = request.args.get('dev', None)
+    username = session.get('username')
+
+
     # Demande de donnée de l'utilisateur
     if request.method == 'POST':
+        assert(deviceid != None)
+
         # Récupérer les paramètres de la requête
         start_time = request.form.get('start_time')
         end_time = request.form.get('end_time')
@@ -448,7 +469,7 @@ def download():
         end_time = datetime.strptime(end_time, '%Y-%m-%dT%H:%M')
 
         # Retrieve data from the database based on the selected criteria
-        query = f"SELECT {', '.join(selected_fields)} FROM Data WHERE timestamp BETWEEN %s AND %s"
+        query = f"SELECT {', '.join(selected_fields)} FROM " + deviceid + " WHERE timestamp BETWEEN %s AND %s"
         cursor.execute(query, (start_time, end_time))
         data = cursor.fetchall()
 
@@ -467,7 +488,14 @@ def download():
             download_name=f'data_{start_time.strftime("%Y%m%d_%H%M%S")}_to_{end_time.strftime("%Y%m%d_%H%M%S")}.csv'
         )
     
-    return render_template('download.html')
+    else:
+        devices = __queryDeviceList(username)
+        if deviceid==None or deviceid == "" or deviceid=="undefined":
+            deviceid = devices[0]['device-id']
+            return redirect("/download?dev="+deviceid)
+        else:
+            fields = __queryAvailableFields(deviceid)
+            return render_template('download.html', selectedDevice=deviceid, devices=devices, fields=fields)
 
 # formulaire de login utilisateur
 class LoginForm(FlaskForm):
@@ -787,10 +815,17 @@ def add_device_DB(deviceid, name, hashed_password, loraDevEui=None):
     Returns:
         None
     """
+
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = "INSERT INTO Device (`device-id`, name, password, `lora-dev-eui`) VALUES (%s, %s, %s, %s)"
     cursor.execute(query, (deviceid, name, hashed_password, loraDevEui))  # Ensure password is hashed
+    db.commit()
+
+    table_create_query = "CREATE TABLE IF NOT EXISTS " + deviceid + \
+    "(`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `timestamp` DATETIME(3) NOT NULL)" + \
+    " ENGINE=InnoDB DEFAULT CHARSET=utf8"
+    cursor.execute(table_create_query)
     db.commit()
 
 def add_device_user_DB(deviceid, username, superowner=0):
@@ -994,6 +1029,9 @@ def __delete_device(deviceid,username):
         query = "DELETE FROM DeviceOwners WHERE device = %s AND owner = %s"
         cursor.execute(query, (deviceid, username))
         db.commit()
+    # supprimer la table contenant les données
+    cursor.execute("DELETE FROM Device WHERE `device-id` = %s", (deviceid))
+    cursor.execute("DROP TABLE IF EXISTS " + deviceid)
     return cond
     
 
@@ -1191,11 +1229,10 @@ def __queryDeviceList(username):
     WHERE DeviceOwners.owner = %s
     """ 
     
-    print("username" , username)
     cursor.execute(query, (username,))
     devices = cursor.fetchall()
     
-    result = [{"dev-eui": device[0], "name": device[1]} for device in devices]
+    result = [{"device-id": device[0], "name": device[1]} for device in devices]
     return result
 
 @app.route('/api/deviceList', methods=['GET', 'POST'])
@@ -1208,7 +1245,6 @@ def apiDeviceList():
     """
     key = request.args.get('key')
     username = get_user_from_api_key(key)
-    print(key, username)
     return jsonify(__queryDeviceList(username))
 
 @app.route('/api/deviceData/<deviceid>', methods=['GET'])

@@ -73,13 +73,14 @@
 
                     object_markers = []
                     for(device in data){
-                        const { eui, name, latitude, longitude, timestamp } = data[device];
-                        if (!markers[eui]) {
-                            markers[eui] = L.marker([latitude, longitude]).addTo(map);
+                        const { name, latitude, longitude, timestamp } = data[device];
+                        const deviceid = data[device]['device-id']
+                        if (!markers[deviceid]) {
+                            markers[deviceid] = L.marker([latitude, longitude]).addTo(map);
                         }
-                        markers[eui].setLatLng([latitude, longitude]);
+                        markers[deviceid].setLatLng([latitude, longitude]);
                         let additionalInfo = "";
-                        fetch('/api/getObject/'+eui)
+                        fetch('/api/getObject/'+deviceid)
                             .then(response => response.json())
                             .then(data => {
                                 if (data) {
@@ -93,8 +94,8 @@
                             })
                             .catch(error => console.error('Error fetching objects:', error))
                             .then(() => {                            
-                                markers[eui].unbindPopup();
-                                markers[eui].bindPopup("<b> Device : "+name + " - " + eui+"</b><br>Latitude : "+latitude+ "<br>Longitude : "+ longitude + 
+                                markers[deviceid].unbindPopup();
+                                markers[deviceid].bindPopup("<b> Device : "+name + " - " + deviceid+"</b><br>Latitude : "+latitude+ "<br>Longitude : "+ longitude + 
                             "<br>Last updated : " + new Date(timestamp) + "ago" + `<br>${additionalInfo}`);})
                     };
                     document.getElementById("update-msg").innerHTML = "Last updated " + new Date()
