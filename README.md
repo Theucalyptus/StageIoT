@@ -33,18 +33,18 @@ Des images docket des différents composants de l'application web sont disponibl
     ./launch-serveur.sh
 ```
 #### Manuellement
-- Dépendances mySQL/mariaDB installé, sans mot de passe sur le compte root, python en version >=3.10
+- Dépendances mySQL/mariaDB installé et configuré (voir plus bas); Python en version >=3.10
 - Depuis le dossier `serveur`, faire les actions suivantes 
-    - Si possible, créer un environnement python virtuel (venv), par exemple avec la commande `python -m venv venv`, puis Avoirl'activer
+    - Si possible, créer un environnement python virtuel (venv), par exemple avec la commande `python -m venv venv`, et l'activer
     - Installer les dépendances: `pip install -r requirements.txt`
     - Lancer l'application avec `python main.py`
-endpoints
+
 #### Configuration
 Dans `seuveur/config.conf`, il est possible de configurer:
 - la connexion à la base de donnée mySQL/mariaDB (addresse réseau, identifiants)
 - les identifiants et addresses réseaux pour la connexion avec *The Things Network*
 
 ### Client
-
 - all sensors are registered in `sensorsList`. if multiple sensors provide the same data field, the data from the latest one will override the others. 
+- 
 

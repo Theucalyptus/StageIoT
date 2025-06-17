@@ -1,28 +1,29 @@
-import json
-from queue import Queue
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, flash, Request
-import io
-from flask_wtf.form import _Auto
-import mysql.connector
-import mysql.connector.abstracts
-import csv
 from datetime import datetime, timedelta
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, flash, Request
+from flask_cors import CORS
+from flask_httpauth import HTTPTokenAuth
+from flask_restful import Api
 from flask_wtf import FlaskForm
+from flask_wtf.form import _Auto
+from pydoc import locate
+from queue import Queue
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, EqualTo, Optional
-import bcrypt
-from flask_httpauth import HTTPTokenAuth
-from pydoc import locate
-from flask_restful import Api
-from flask_cors import CORS
 import base64
-import uuid
-#from Interface import data_format
+import bcrypt
+import csv
+import io
+import json
+import logging
 import math
+import mysql.connector
+import mysql.connector.abstracts
+import time
+import uuid
+
 
 import Interface
 
-import logging
 
 app = Flask(__name__)
 CORS(app)
@@ -129,7 +130,6 @@ def check_user_token():
     else:
         return None
 
-
 @app.route('/')
 def accueil():
     """
@@ -157,7 +157,7 @@ def post_data():
     Returns:
         JSON response: A JSON response indicating the status of the request.
     """
-    
+
     if request.method == 'POST': 
         # récupérer les données de la requête
         raw_data = request.get_data().decode('utf-8')
@@ -166,17 +166,31 @@ def post_data():
             data = json.loads(raw_data)
             print(data)
             if data['type'] == 1:
+                # device status update
                 Q_out.put(data.copy())
                 add_data_to_cache(data)
-                return jsonify({"status": "success"}), 200
+            elif data['type'] == 2:
+                # object observation
+                for object in data['objects']:
+                    oTemp = object.copy()
+                    oTemp["timestamp"]=data['timestamp']
+                    oTemp['seenby']=data['device-id']
+                    # Ajouter les données à la base de données
+                    Interface.save_object_DB(oTemp.copy())
+                    # Ajouter les données à la liste d'objets
+                    if data['device-id'] in objects_storage:
+                        objects_storage[data['device-id']][oTemp['id']] = oTemp
+                    else:
+                        objects_storage[data['device-id']] = {oTemp['id']:oTemp}
             else:
                 logging.error("Not Implemented message type " + str(data['type']))
+
+            return jsonify({"status": "success"}), 200
         except json.JSONDecodeError:
             print("Received malformed json data")
     else:
         return jsonify({"status": "error", "message": "Invalid method"}), 400 # not a POST request
             
-
 def add_data_to_cache(data):
     """
     Add data to the cache based on the 'eui' value in the data dictionary.
@@ -423,6 +437,9 @@ def downloadall():
 
 
 def __queryAvailableFields(deviceID):
+    """
+        Returns a string list of all available data fields for a given device.
+    """
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
     cursor = db.cursor()
 
@@ -919,7 +936,7 @@ def edit_device(deviceid):
             match check_device_DB(deviceid,password):
                 case 1:
                     if check_superowner(deviceid,username):
-                        edit_dev(deviceid,name,new_password,description)
+                        __editDevice(deviceid,name,new_password,description)
                         return redirect(url_for('deviceList'))
                     else:
                         flash('You are not the super user of this device', 'danger')
@@ -943,7 +960,7 @@ def edit_device(deviceid):
         flash('User not logged in', 'danger')
         return redirect(url_for('login'))
 
-def edit_dev(deviceid,name,password,description):
+def __editDevice(deviceid,name,password,description):
     """
     Edit the device and its association with the user.
 
@@ -1011,7 +1028,6 @@ def delete_dev(deviceid):
         return jsonify({"status": "error"}), 400 
     return redirect(url_for('deviceList'))
 
-
 def __delete_device(deviceid,username):
     """
     Deletes the device and its association with the user.
@@ -1034,7 +1050,6 @@ def __delete_device(deviceid,username):
     cursor.execute("DROP TABLE IF EXISTS " + deviceid)
     return cond
     
-
 @app.route('/profile', methods=['GET', 'POST'])
 @auth.login_required
 def profile():
@@ -1082,24 +1097,23 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     distance = R * c
     return distance
 
-
-def __getNearbyObjects(eid, size):
+def __getDeviceLatestLocation(deviceid):
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    neighbours=[]
     query = """
         SELECT latitude, longitude
-        FROM Data
-        WHERE source = %s
+        FROM {0}
         ORDER BY timestamp DESC
         LIMIT 1;
-    """
-    cursor.execute(query, (eid  ,))
+    """ % deviceid
+    cursor.execute(query)
     device_location = cursor.fetchone()
-    latitude, longitude = device_location
+    return device_location
 
-    print("__getNearbyObjects", eid, size)
-
+def __getNearbyObjects(deviceid, size):
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    latitude, longitude = __getDeviceLatestLocation(deviceid)
     query = """
         SELECT DISTINCT Device.`device-id`
         FROM Data
@@ -1147,6 +1161,11 @@ def objets_proches(deviceid):
     data, distances = __getNearbyObjects(deviceid, size)
     return render_template('objets_proches.html', data=data, distances=distances)
 
+
+"""==============================================================="""
+"""                             API                               """
+"""==============================================================="""
+
 @app.route('/getApiKey', methods=['GET'])
 @auth.login_required
 def get_api_keys():
@@ -1192,11 +1211,6 @@ def generate_api_key():
     api_key = {"api_key": api_key_str}
     
     return jsonify(api_key)
-
-
-"""==============================================================="""
-"""                             API                               """
-"""==============================================================="""
 
 def get_user_from_api_key(api_key):
     """
@@ -1576,7 +1590,7 @@ def apiGetObject(deviceid):
     """
 
     if deviceid in objects_storage:
-        return jsonify(objects_storage[deviceid]), 200
+        return jsonify(list(objects_storage[deviceid].values())), 200
     elif deviceid in __queryAllDeviceEUI():
          return jsonify(None), 200 # device exists, but no object is seen by this device
     else:

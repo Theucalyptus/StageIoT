@@ -40,14 +40,14 @@ CREATE TABLE IF NOT EXISTS Auth_Token (
     FOREIGN KEY (`user`) REFERENCES Users(`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE IF NOT EXISTS Objets (
+CREATE TABLE IF NOT EXISTS Objects (
     `ìd` serial,
     `timestamp` DATETIME(3) NOT NULL,
-    `eui` varchar(255) NOT NULL,
+    `seenby` varchar(255) NOT NULL,
     `latitude` float NOT NULL,
     `longitude` float NOT NULL,
     `label` varchar(255) NOT NULL,
-    FOREIGN KEY (`eui`) REFERENCES Device (`device-id`)
+    FOREIGN KEY (`seenby`) REFERENCES Device (`device-id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 

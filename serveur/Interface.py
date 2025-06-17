@@ -36,51 +36,43 @@ def save_sample_DB(data):
     
     try :
         request_type = data.pop('type', None)
-        if request_type == 1:
-            deviceid = data.pop('device-id', None)
-            data['timestamp']=datetime.datetime.fromtimestamp(data['timestamp'])
-            for field in data.keys():
-                if field != "timestamp":
-                    if not __checkColumnExists(deviceid, field):
-                        add_col_query = "ALTER TABLE " + deviceid + " ADD COLUMN "+ field + " " + str(__getSQLDataType(data[field])) + " DEFAULT NULL;"
-                        c.execute(add_col_query, ())
+        assert(request_type == 1)
+        deviceid = data.pop('device-id', None)
+        data['timestamp']=datetime.datetime.fromtimestamp(data['timestamp'])
+        for field in data.keys():
+            if field != "timestamp":
+                if not __checkColumnExists(deviceid, field):
+                    add_col_query = "ALTER TABLE " + deviceid + " ADD COLUMN "+ field + " " + str(__getSQLDataType(data[field])) + " DEFAULT NULL;"
+                    c.execute(add_col_query, ())
 
-            # insert data
-            query = "INSERT INTO "+ deviceid +" ("
-            for field in data.keys():
-                query += field + ", "
-            query = query.removesuffix(", ")
-            query += ") VALUES ("
-            for field in data.keys():
-                query += "%({0})s, ".format(field)
-            query = query.removesuffix(", ")
-            query += ")"
+        # insert data
+        query = "INSERT INTO "+ deviceid +" ("
+        for field in data.keys():
+            query += field + ", "
+        query = query.removesuffix(", ")
+        query += ") VALUES ("
+        for field in data.keys():
+            query += "%({0})s, ".format(field)
+        query = query.removesuffix(", ")
+        query += ")"
 
-            if query != "":
-                db_cursor.execute(query,data)
-                db.commit()
-        else:
-            raise NotImplementedError
-
-        # match id :
-        #     case 2 :
-        #         table = "Data"
-        #         db_cursor.execute("SELECT * FROM "+table+" WHERE timestamp = %(timestamp)s",data)
-        #         if db_cursor.rowcount >= 1:
-        #             print("WARNING: inserting a conflicting data !!!!")
-        #             utils.print_SQL_response(db_cursor)
-                
-        #     case 3 :
-        #         table = "Obstacles"
-        #         # Ajouter les données à la base de données
-        #         query = "INSERT INTO Objets (timestamp, eui, latitude, longitude, label) VALUES (%(timestamp)s, %(eui)s, %(latitude)s, %(longitude)s, %(label)s)"
-                
+        if query != "":
+            db_cursor.execute(query,data)
+            db.commit()               
     except Exception as e :
         print("DB insertion failed with exception", e)
 
+def save_object_DB(object):
+    global db, db_cursor
+    c = db_cursor
+    table = "Objects"
+    object['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
+    query = "INSERT INTO " + table +" (timestamp, seenby, latitude, longitude, label) VALUES (%(timestamp)s, %(seenby)s, %(latitude)s, %(longitude)s, %(label)s)"
+    c.execute(query, (object))
+
+
 def data_LoRa_handler(message,device):
     requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=message)
-
 
 def LoRa_msg_handler(msg):
     try :
@@ -121,9 +113,6 @@ def Web_msg_handler(data_sample):
     else:
         print("device "+device+" not registered, ignoring.")
     
-    
-
-
 def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
     global db, db_cursor, Config
     print("Starting Interface node")
