@@ -102,7 +102,7 @@
                             .then(response => response.json())
                             .then(data => {
                                 if (data) {
-                                    additionalInfo = '<b> Objects:</b><br>' + data.map(obj => `${obj.label.trim()} (ID: ${obj.id}), ${Math.round((obj.latitude, obj.longitude, latitude, longitude))} m`).join('<br>');
+                                    additionalInfo = '<b> Objects:</b><br>' + data.map(obj => `${obj.label.trim()} (ID: ${obj.id}), ${(obj.latitude, obj.longitude, latitude, longitude)} m`).join('<br>');
                                     data.forEach(obj => {
                                         m = L.marker([obj.latitude, obj.longitude], {icon: objectIcon}).addTo(map);
                                         m.bindPopup('<b> Object : ' +obj.label+ ` (ID: ${obj.id})</b></br>Reported by : `+ name);

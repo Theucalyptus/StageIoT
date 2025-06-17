@@ -197,7 +197,7 @@
         fetchData();
         const selectElement = document.getElementById("deviceSelect");
         
-        let euiList = fetch('/get_euiList')
+        let euiList = fetch('/getDeviceList')
         .then(response => {
             // Vérifier si la requête a réussi
             if (!response.ok) {

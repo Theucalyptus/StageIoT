@@ -4,8 +4,6 @@ from flask_cors import CORS
 from flask_httpauth import HTTPTokenAuth
 from flask_restful import Api
 from flask_wtf import FlaskForm
-from flask_wtf.form import _Auto
-from pydoc import locate
 from queue import Queue
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, EqualTo, Optional
@@ -18,11 +16,13 @@ import logging
 import math
 import mysql.connector
 import mysql.connector.abstracts
-import time
 import uuid
 
-
 import Interface
+
+
+class NoLocationDataException(Exception):
+    pass
 
 
 app = Flask(__name__)
@@ -339,9 +339,9 @@ def get_objects():
     """
     return jsonify(objects_storage)
 
-@app.route('/get_euiList', methods=['GET', 'POST'])
+@app.route('/getDeviceList', methods=['GET', 'POST'])
 @auth.login_required
-def get_euiList():
+def getDeviceList():
     """
     Retrieves a list of eui associated with the logged-in user.
 
@@ -840,7 +840,8 @@ def add_device_DB(deviceid, name, hashed_password, loraDevEui=None):
     db.commit()
 
     table_create_query = "CREATE TABLE IF NOT EXISTS " + deviceid + \
-    "(`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `timestamp` DATETIME(3) NOT NULL)" + \
+    "(`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `timestamp` DATETIME(3) NOT NULL," + \
+    "`longitude` float DEFAULT NULL, `latitude` float DEFAULT NULL)" + \
     " ENGINE=InnoDB DEFAULT CHARSET=utf8"
     cursor.execute(table_create_query)
     db.commit()
@@ -1098,53 +1099,54 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return distance
 
 def __getDeviceLatestLocation(deviceid):
+
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    query = """
-        SELECT latitude, longitude
-        FROM {0}
-        ORDER BY timestamp DESC
-        LIMIT 1;
-    """ % deviceid
+
+    query = "SELECT latitude, longitude FROM {0} ORDER BY timestamp DESC LIMIT 1;".format(deviceid)
     cursor.execute(query)
     device_location = cursor.fetchone()
+    if device_location == None:
+        raise NoLocationDataException
     return device_location
 
-def __getNearbyObjects(deviceid, size):
+def __getNearbyObjects(deviceid, seuil=100):
+    """
+        Get the list of all objects detected other devices in the specified range.
+    """
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    latitude, longitude = __getDeviceLatestLocation(deviceid)
-    query = """
-        SELECT DISTINCT Device.`device-id`
-        FROM Data
-        JOIN Device ON Data.source = Device.`device-id`
-        JOIN DeviceOwners ON Device.`device-id` = DeviceOwners.device
-        AND POWER(Data.latitude - %s, 2) + POWER(Data.longitude - %s, 2) <= POWER(%s, 2)"""
     
-    # TODO: filtrage temporel à remettre quand les émetteurs seront synchro
-    d = """
-        AND Data.timestamp > %s;
-    """
+    try:
+        latitude, longitude = __getDeviceLatestLocation(deviceid)
+
+        # Récupération de la liste des appareils dans le périmètre
+        neighbours = []
+        for device in __queryAllDeviceIDs():
+            if device != deviceid:
+                try:
+                    lat2, long2 = __getDeviceLatestLocation(device)
+                    if calculate_distance(latitude, longitude, lat2, long2) < seuil:
+                        neighbours.append(device)
+                except NoLocationDataException:
+                    pass #if __getDeviceLatestLocation failed, because we don't have any location data yet
+
+        # recuperer les objets vus/détectés par ces appareils
+        objects = {}
+        distances = {}
+        for nlist in neighbours:
+            neighbour = nlist[0]
+            if neighbour in objects_storage:
+                distance = calculate_distance(latitude, longitude, objects_storage[neighbour][0]['latitude'], objects_storage[neighbour][0]['longitude'])
+                objects[neighbour] = objects_storage[neighbour]
+                distances[neighbour] = distance
+
+        return objects, distances
     
-    cursor.execute(query, (latitude, longitude, size)) # , datetime.now() - timedelta(seconds=60)))
-    #cursor.execute(query, ())
+    except NoLocationDataException:
+        return {}, {}
 
-    
-    neighbours = cursor.fetchall()
-    # recuperer les objets vus par ces appareils
-    objects = {}
-    distances = {}
-    for nlist in neighbours:
-        neighbour = nlist[0]
-        if neighbour in objects_storage:
-            distance = calculate_distance(latitude, longitude, objects_storage[neighbour][0]['latitude'], objects_storage[neighbour][0]['longitude'])
-            objects[neighbour] = objects_storage[neighbour]
-            distances[neighbour] = distance
-
-
-    return objects, distances
-
-@app.route('/objets_proches/<deviceid>', methods=['GET'])
+@app.route('/objets_proches/<deviceid>', methods=['GET']) 
 @auth.login_required
 def objets_proches(deviceid):
     """
@@ -1273,6 +1275,7 @@ def apiDevice_data(deviceid):
         flask.Response: A JSON response containing the retrieved data.
 
     """
+
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     key = request.args.get('key')
@@ -1562,7 +1565,7 @@ def apiObjets_proches(deviceid):
     
     return jsonify(objects),200
 
-def __queryAllDeviceEUI():
+def __queryAllDeviceIDs():
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = """
@@ -1591,7 +1594,7 @@ def apiGetObject(deviceid):
 
     if deviceid in objects_storage:
         return jsonify(list(objects_storage[deviceid].values())), 200
-    elif deviceid in __queryAllDeviceEUI():
+    elif deviceid in __queryAllDeviceIDs():
          return jsonify(None), 200 # device exists, but no object is seen by this device
     else:
         return jsonify({"error": "Object not found"}), 404
