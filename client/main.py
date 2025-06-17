@@ -9,7 +9,7 @@ from buffer import Buffer
 import network
 import sensors
 
-import detection_oakd
+from spatial_object_perso import ObjectDetection
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,10 +28,8 @@ UART_SPEED = 115200
 ### Phone
 q_phone_out, q_phone_in = Buffer(), Queue()
 phone = sensors.Phone(q_phone_in, q_phone_out)
-### Object Dpassetection
-q_object = Queue()
-#t = threading.Thread(target=detection_oakd.ObjectDetection, args=[q_object])
-#t.start()
+
+
 ### Can Bus
 q_can_out = Buffer()
 canbus = sensors.CANBus(q_can_out)
@@ -39,13 +37,22 @@ canbus = sensors.CANBus(q_can_out)
 sensorsList = [phone, canbus]
 
 ## NETWORK
+q_net_out, q_net_in = Queue(), Buffer()
 ### LoRa
-q_uart_out, q_uart_in = Queue(), Buffer()
-#uart_service = network.UartService(UART_DEVICE, UART_SPEED, q_uart_in, q_uart_out)
+#uart_service = network.UartService(UART_DEVICE, UART_SPEED, q_net_in, q_net_out)
 #uart_service.run()
+### HTTP (WiFi, Ethernet, LTE/5G)
+http_service = network.HTTPService("10.42.0.88", 5000, q_net_in, q_net_out)
+http_service.run()
 
 canbus.run()
 phone.run()
+
+### Object Detection
+q_object = Queue()
+t = threading.Thread(target=ObjectDetection, args=(q_net_in,))
+#t.start()
+
 
 message = {'device-id':DEVICE_ID, 'type':1}
 while True:
@@ -63,8 +70,8 @@ while True:
             pass
     
     # network input queue
-    q_uart_in.put(json.dumps(message))
+    q_net_in.put(json.dumps(message) + "\n")
 
     # DEBUG
-    print(q_uart_in.get())
+    #print(q_net_in.get())
     

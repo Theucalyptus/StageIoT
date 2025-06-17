@@ -32,8 +32,8 @@ which python
 
 ## Network Setup
 if ! nmcli -g GENERAL.STATE c s Hotspot | grep -q -E '\bactiv'; then
-  ecsudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
-ho -e "Switching wifi on"
+  sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+  echo -e "Switching wifi on"
   sudo nmcli radio wifi on
   echo -e "Waiting 5sec for wifi to come online"
   sleep 5

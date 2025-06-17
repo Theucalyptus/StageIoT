@@ -1,6 +1,7 @@
 import serial
 import logging
 import threading
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -43,3 +44,24 @@ class UartService:
                     self.q_out.put(t)
                 self.outBuffer = msgl[-1]
                 
+class HTTPService:
+
+    def __init__(self, host, port, q_in, q_out):
+        self.url = "http://"+host+":"+str(port)+"/post_data"
+        self.q_in = q_in
+        self.q_out = q_out
+
+    def run(self):
+        logger.info("http service running")
+        self.worker = threading.Thread(target=self.__run)
+        self.worker.start()
+
+    def __run(self):
+        while True:
+            if not self.q_in.empty():
+                self.__send(self.q_in.get())
+            
+    def __send(self, msg):
+        logger.info("sending via http" + msg)
+        requests.post(self.url, data=msg)
+
