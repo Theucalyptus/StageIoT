@@ -46,5 +46,5 @@ Dans `seuveur/config.conf`, il est possible de configurer:
 
 ### Client
 - all sensors are registered in `sensorsList`. if multiple sensors provide the same data field, the data from the latest one will override the others. 
-- 
+- objects detected by the cameras are, **for now**, located in the same place as the camera itself, as we need the orientation to compute GPS coordonates from the relative position provided by the camera. We will try to add this feature in the future.
 

@@ -12,6 +12,8 @@ with connect("ws://localhost:6789") as websocket:
             data["longitude"] = 1.3
             data["altitude"] = 195.3
             data["speed"] = 34.5
+            data["pitch"] = 195.3
+            data["roll"] = 34.5
 
             serialized = json.dumps(data)
 

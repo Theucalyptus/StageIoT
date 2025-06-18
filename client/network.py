@@ -2,12 +2,19 @@ import serial
 import logging
 import threading
 import requests
+from config import config
+
+from requests.exceptions import ConnectionError
 
 logger = logging.getLogger(__name__)
 
 class UartService:
 
-    def __init__(self, device, speed, q_in, q_out):
+    def __init__(self, q_in, q_out):
+        global config
+        device = config.get('network.uart', 'device')
+        speed = int(config.get('network.uart', 'speed'))
+
         logger.info("setup using device " + device + " bauds " + str(speed))
         self.serial = serial.Serial(device, speed)
         self.outBuffer = ""
@@ -46,13 +53,16 @@ class UartService:
                 
 class HTTPService:
 
-    def __init__(self, host, port, q_in, q_out):
-        self.url = "http://"+host+":"+str(port)+"/post_data"
+    def __init__(self, q_in, q_out):
+        host = config.get('network.http', 'host')
+        port = config.get('network.http', 'port')
+
+        self.url = "http://"+host+":"+port+"/post_data"
         self.q_in = q_in
         self.q_out = q_out
 
     def run(self):
-        logger.info("http service running")
+        logger.info("http service running with endpoint " + self.url)
         self.worker = threading.Thread(target=self.__run)
         self.worker.start()
 
@@ -60,8 +70,11 @@ class HTTPService:
         while True:
             if not self.q_in.empty():
                 self.__send(self.q_in.get())
-            
-    def __send(self, msg):
-        logger.info("sending via http" + msg)
-        requests.post(self.url, data=msg)
+                
 
+    def __send(self, msg):
+        logger.info("sending via http " + msg.removesuffix("\n"))
+        try:
+            requests.post(self.url, data=msg)
+        except ConnectionError:
+            logger.warning("http send failed. Please check internet access and network settings")
