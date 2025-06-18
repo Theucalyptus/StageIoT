@@ -37,18 +37,22 @@ class Tracked:
 #---------------------prepare the json------------------------------
 
 #------ get latitude phone-----------
-def get_latitude_longitude():
+def get_latitude_longitude(lat, long, azimuthDeg, z, x):
     """
-    Returns the latitude and longitude of the phone
+    Returns the latitude and longitude of the object, based on the azimuth and relative coordinates of the camera
     """
-    try:
-        phone = sensors.Phone(None, None)
-        sample = phone.getLatestSample()
-        return sample['latitude'], sample['longitude']
-    except sensors.NoSampleAvailable:
-        return 0, 0
 
-def construire_json(tracked_objs):
+    aziTrig = (math.pi/2) - (azimuthDeg*math.pi/180)
+    distLong = z*math.cos(aziTrig) + x*math.sin(aziTrig)
+    distLat = z*math.sin(aziTrig) - x*math.cos(aziTrig)
+    R = 6371000
+    blat = distLat / (2*math.pi*R)
+    blong = distLong / (2*math.pi*R)
+
+    return lat+blat, long+blong
+
+
+def construire_json(tracked_objs, lat, long, azimuth):
     data = {
         "device-id": "jetson1",
         "type": 2,
@@ -57,7 +61,9 @@ def construire_json(tracked_objs):
     }
 
     for obj in tracked_objs:
-        lat,lon= get_latitude_longitude()
+        print(obj)                                              
+                                                                #z          #x
+        lat,lon= get_latitude_longitude(lat, long, azimuth, obj.xyz[2], obj.xyz[0])
         data["objects"].append({
             "latitude": lat,
             "longitude": lon,
@@ -70,116 +76,127 @@ def construire_json(tracked_objs):
 
 
 # ---------- 3. Boucle principale ------------------------------------------
-def ObjectDetection(Q_out: Queue):
 
-    blob = Path(__file__).with_name("mobilenet-ssd_openvino_2021.4_6shave.blob")
-    if not blob.exists():
-        raise FileNotFoundError(blob)
+class Camera:
 
-    LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus","car",
-              "cat","chair","cow","diningtable","dog","horse","motorbike","person",
-              "pottedplant","sheep","sofa","train","tvmonitor"]
-    IMPORTANT = {"bicycle","bus","car","horse","motorbike","person"}
+    def __init__(self):
+        self.setCoordinates(0, 0, 0)
 
-    # ---- pipeline ---------------------------------------------------
-    pipe = dai.Pipeline()
-    cam, monoL, monoR = pipe.create(dai.node.ColorCamera), pipe.create(dai.node.MonoCamera), pipe.create(dai.node.MonoCamera)
-    stereo, nn        = pipe.create(dai.node.StereoDepth), pipe.create(dai.node.MobileNetSpatialDetectionNetwork)
-    xout_rgb, xout_det = pipe.create(dai.node.XLinkOut), pipe.create(dai.node.XLinkOut)
-    xout_rgb.setStreamName("rgb"); xout_det.setStreamName("det")
+    def setCoordinates(self, lat, long, azimuth):
+        self.latitude = lat
+        self.longitude = long
+        self.azimuth = azimuth
 
-    cam.setPreviewSize(300,300); cam.setInterleaved(False)
-    monoL.setCamera("left"); monoR.setCamera("right")
-    nn.setBlobPath(str(blob)); nn.setConfidenceThreshold(0.5)
-    monoL.out.link(stereo.left); monoR.out.link(stereo.right)
-    cam.preview.link(nn.input); stereo.depth.link(nn.inputDepth)
-    nn.out.link(xout_det.input); nn.passthrough.link(xout_rgb.input)
+    def ObjectDetection(self, Q_out: Queue):
 
-    # ---- tables de tracking -----------------------------------------
-    next_id = 0
-    tracked = {}      # id -> Tracked
+        blob = Path(__file__).with_name("mobilenet-ssd_openvino_2021.4_6shave.blob")
+        if not blob.exists():
+            raise FileNotFoundError(blob)
 
-    with dai.Device(pipe, maxUsbSpeed=dai.UsbSpeed.HIGH) as dev:
-        q_rgb = dev.getOutputQueue("rgb",4,False)
-        q_det = dev.getOutputQueue("det",4,False)
+        LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus","car",
+                "cat","chair","cow","diningtable","dog","horse","motorbike","person",
+                "pottedplant","sheep","sofa","train","tvmonitor"]
+        IMPORTANT = {"bicycle","bus","car","horse","motorbike","person"}
 
-        t_last_send = time.time()
+        # ---- pipeline ---------------------------------------------------
+        pipe = dai.Pipeline()
+        cam, monoL, monoR = pipe.create(dai.node.ColorCamera), pipe.create(dai.node.MonoCamera), pipe.create(dai.node.MonoCamera)
+        stereo, nn        = pipe.create(dai.node.StereoDepth), pipe.create(dai.node.MobileNetSpatialDetectionNetwork)
+        xout_rgb, xout_det = pipe.create(dai.node.XLinkOut), pipe.create(dai.node.XLinkOut)
+        xout_rgb.setStreamName("rgb"); xout_det.setStreamName("det")
+        stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)
 
-        while True:
-            rgb_msg = q_rgb.tryGet()
-            det_msg = q_det.tryGet()
-            if rgb_msg is None or det_msg is None:
-                time.sleep(0.002)
-                continue
+        cam.setPreviewSize(300,300); cam.setInterleaved(False)
+        monoL.setCamera("left"); monoR.setCamera("right")
+        nn.setBlobPath(str(blob)); nn.setConfidenceThreshold(0.5)
+        monoL.out.link(stereo.left); monoR.out.link(stereo.right)
+        cam.preview.link(nn.input); stereo.depth.link(nn.inputDepth)
+        nn.out.link(xout_det.input); nn.passthrough.link(xout_rgb.input)
 
-            frame = rgb_msg.getCvFrame()
-            detections = det_msg.detections
-            H,W = frame.shape[:2]
-            now = time.time()
+        # ---- tables de tracking -----------------------------------------
+        next_id = 0
+        tracked = {}      # id -> Tracked
 
-            # --------- association bbox -> tracked --------------------
-            matched_ids = set()
-            for d in detections:
-                label = LABELS[d.label] if d.label < len(LABELS) else str(d.label)
-                cx = int((d.xmin + d.xmax) / 2 * W)
-                cy = int((d.ymin + d.ymax) / 2 * H)
-                xyz = (d.spatialCoordinates.x, d.spatialCoordinates.y, d.spatialCoordinates.z)
+        with dai.Device(pipe, maxUsbSpeed=dai.UsbSpeed.HIGH) as dev:
+            q_rgb = dev.getOutputQueue("rgb",4,False)
+            q_det = dev.getOutputQueue("det",4,False)
 
-                # cherche le tracked du même label le plus proche
-                best, best_dist = None, 1e9
-                for tr in tracked.values():
-                    if tr.label == label:
-                        dist = math.hypot(cx - tr.cx, cy - tr.cy)
-                        if dist < best_dist:
-                            best, best_dist = tr, dist
-                
-                if best and best_dist < PIX_MATCH_RADIUS:
-                    best.update(cx, cy, xyz)
-                    matched_ids.add(best.id)
-                    trk = best
-                    #print(f"[UPDATE] Objet ID {trk.id} ({label}) mis à jour à ({cx}, {cy})")
-                else:
-                    trk = Tracked(next_id, label, cx, cy, xyz)
-                    tracked[next_id] = trk
-                    matched_ids.add(next_id)
-                    #print(f"[NOUVEAU] Objet ID {next_id} ({label}) détecté à ({cx}, {cy})")
-                    next_id += 1
+            t_last_send = time.time()
 
-                # dessin debug
-                x1,y1 = int(d.xmin*W), int(d.ymin*H)
-                x2,y2 = int(d.xmax*W), int(d.ymax*H)
-                cv2.rectangle(frame,(x1,y1),(x2,y2),(255,0,0),1)
-                cv2.putText(frame,f"ID {trk.id}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
-                cv2.putText(frame,label,(x1,y1+14),cv2.FONT_HERSHEY_SIMPLEX,0.5,255)
+            while True:
+                rgb_msg = q_rgb.tryGet()
+                det_msg = q_det.tryGet()
+                if rgb_msg is None or det_msg is None:
+                    time.sleep(0.002)
+                    continue
 
-            # --------- purge des perdus --------------------------------
-            for oid in list(tracked):
-                if now - tracked[oid].last_seen > LOST_TIMEOUT:
-                    tracked.pop(oid)
+                frame = rgb_msg.getCvFrame()
+                detections = det_msg.detections
+                H,W = frame.shape[:2]
+                now = time.time()
 
-            # --------- envoi groupé périodique -------------------------
-            if now - t_last_send >= SEND_PERIOD:
-                
-                for tr in tracked.values():
-                    if tr.label in IMPORTANT and tr.moved_enough():
-                        x,y,z = tr.xyz
-                        #payload += f"{tr.id:<3},{int(x):<6},{int(y):<6},{int(z):<6},{tr.label:<10};"
-                        tr.last_sent_cxy = (tr.cx, tr.cy)
-                
-                Q_out.put(construire_json(tracked.values()))
-                #print("→", payload)
-                print("envoi de données")
+                # --------- association bbox -> tracked --------------------
+                matched_ids = set()
+                for d in detections:
+                    label = LABELS[d.label] if d.label < len(LABELS) else str(d.label)
+                    cx = int((d.xmin + d.xmax) / 2 * W)
+                    cy = int((d.ymin + d.ymax) / 2 * H)
+                    xyz = (d.spatialCoordinates.x, d.spatialCoordinates.y, d.spatialCoordinates.z)
 
-                t_last_send = now
+                    # cherche le tracked du même label le plus proche
+                    best, best_dist = None, 1e9
+                    for tr in tracked.values():
+                        if tr.label == label:
+                            dist = math.hypot(cx - tr.cx, cy - tr.cy)
+                            if dist < best_dist:
+                                best, best_dist = tr, dist
+                    
+                    if best and best_dist < PIX_MATCH_RADIUS:
+                        best.update(cx, cy, xyz)
+                        matched_ids.add(best.id)
+                        trk = best
+                        #print(f"[UPDATE] Objet ID {trk.id} ({label}) mis à jour à ({cx}, {cy})")
+                    else:
+                        trk = Tracked(next_id, label, cx, cy, xyz)
+                        tracked[next_id] = trk
+                        matched_ids.add(next_id)
+                        #print(f"[NOUVEAU] Objet ID {next_id} ({label}) détecté à ({cx}, {cy})")
+                        next_id += 1
 
-            cv2.imshow("preview", frame)
-            if cv2.waitKey(1) == ord('q'):
-                break
+                    # dessin debug
+                    x1,y1 = int(d.xmin*W), int(d.ymin*H)
+                    x2,y2 = int(d.xmax*W), int(d.ymax*H)
+                    cv2.rectangle(frame,(x1,y1),(x2,y2),(255,0,0),1)
+                    cv2.putText(frame,f"ID {trk.id}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
+                    cv2.putText(frame,label,(x1,y1+14),cv2.FONT_HERSHEY_SIMPLEX,0.5,255)
+
+                # --------- purge des perdus --------------------------------
+                for oid in list(tracked):
+                    if now - tracked[oid].last_seen > LOST_TIMEOUT:
+                        tracked.pop(oid)
+
+                # --------- envoi groupé périodique -------------------------
+                if now - t_last_send >= SEND_PERIOD:
+                    
+                    for tr in tracked.values():
+                        if tr.label in IMPORTANT and tr.moved_enough():
+                            x,y,z = tr.xyz
+                            #payload += f"{tr.id:<3},{int(x):<6},{int(y):<6},{int(z):<6},{tr.label:<10};"
+                            tr.last_sent_cxy = (tr.cx, tr.cy)
+                    
+                    obj_data_msg = construire_json(tracked.values(), self.latitude, self.longitude, self.azimuth)
+                    print("envoi de données objets", obj_data_msg)
+                    Q_out.put(obj_data_msg)
+                    t_last_send = now
+
+                cv2.imshow("preview", frame)
+                if cv2.waitKey(1) == ord('q'):
+                  break
 
 # --------------- main thread -----------------------------------------------
 if __name__ == "__main__":
     q = Queue()
-    threading.Thread(target=ObjectDetection,args=(q,),daemon=True).start()
+    threading.Thread(target=Camera().bjectDetection,args=(q,),daemon=True).start()
     try:
         while True:
             print(q.get())

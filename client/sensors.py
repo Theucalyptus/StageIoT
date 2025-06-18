@@ -79,7 +79,8 @@ class Phone(Sensor):
         self.data.setdefault("speed")
         self.data.setdefault("roll")
         self.data.setdefault("pitch")
-
+        self.data.setdefault("azimuth")
+        
     def __conn_handler(self, websocket):
         try:
             while True:
