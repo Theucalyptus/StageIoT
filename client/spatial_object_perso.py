@@ -41,7 +41,8 @@ def get_latitude_longitude(lat, long, azimuthDeg, z, x):
     """
     Returns the latitude and longitude of the object, based on the azimuth and relative coordinates of the camera
     """
-
+    z/=1000
+    x/=1000
     aziTrig = (math.pi/2) - (azimuthDeg*math.pi/180)
     distLong = z*math.cos(aziTrig) + x*math.sin(aziTrig)
     distLat = z*math.sin(aziTrig) - x*math.cos(aziTrig)
@@ -50,7 +51,6 @@ def get_latitude_longitude(lat, long, azimuthDeg, z, x):
     blong = distLong / (2*math.pi*R)
 
     return lat+blat, long+blong
-
 
 def construire_json(tracked_objs, lat, long, azimuth):
     data = {
@@ -76,7 +76,6 @@ def construire_json(tracked_objs, lat, long, azimuth):
 
 
 # ---------- 3. Boucle principale ------------------------------------------
-
 class Camera:
 
     def __init__(self):
@@ -167,7 +166,7 @@ class Camera:
                     x1,y1 = int(d.xmin*W), int(d.ymin*H)
                     x2,y2 = int(d.xmax*W), int(d.ymax*H)
                     cv2.rectangle(frame,(x1,y1),(x2,y2),(255,0,0),1)
-                    cv2.putText(frame,f"ID {trk.id}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
+                    cv2.putText(frame,f"ID {trk.id} d{trk.xyz[2]}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
                     cv2.putText(frame,label,(x1,y1+14),cv2.FONT_HERSHEY_SIMPLEX,0.5,255)
 
                 # --------- purge des perdus --------------------------------
