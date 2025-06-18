@@ -743,7 +743,7 @@ def register_device():
         
         # Ajouter l'appareil a la base
         if username:
-            add_device_DB(deviceid, name, hashed_password)
+            add_device_DB(deviceid, name, hashed_password, form.lora_dev_eui.data)
 
             # TODO: Ajout a TTN via http ou via l'api
             # appid="stm32lora1"
@@ -820,7 +820,7 @@ def check_link_device(deviceid, username):
     cursor.execute(query, (deviceid, username))
     return len(cursor.fetchall())
 
-def add_device_DB(deviceid, name, hashed_password, loraDevEui=None):
+def add_device_DB(deviceid, name, hashed_password, loraDevEui):
     """
     Add a device to the database.
 
@@ -832,6 +832,9 @@ def add_device_DB(deviceid, name, hashed_password, loraDevEui=None):
     Returns:
         None
     """
+
+    if loraDevEui == "":
+        loraDevEui=None
 
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
@@ -1047,7 +1050,7 @@ def __delete_device(deviceid,username):
         cursor.execute(query, (deviceid, username))
         db.commit()
     # supprimer la table contenant les données
-    cursor.execute("DELETE FROM Device WHERE `device-id` = %s", (deviceid))
+    cursor.execute("DELETE FROM Device WHERE `device-id` = %s", (deviceid,))
     cursor.execute("DROP TABLE IF EXISTS " + deviceid)
     return cond
     
