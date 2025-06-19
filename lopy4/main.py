@@ -15,18 +15,18 @@ def isfloat(num):
     except ValueError:
         return False
 
-pycom.heartbeat(False) # Desactivation du mode led clignotante
-pycom.rgbled(0x000011) # Couleur led bleue pour signaler le démarrage
+pycom.heartbeat(False) # Turning off LED heartbeat
+pycom.rgbled(0x000011) # Blue LED indicating boot
 
 ## LOPY 10
-app_eui = '70B3D57ED003A322'
-app_key = '3072E1FA34B866583697F768C9F9BA13'
-dev_eui = '70b3d5499809d4ea'
+# app_eui = '70B3D57ED003A322'
+# app_key = '3072E1FA34B866583697F768C9F9BA13'
+# dev_eui = '70b3d5499809d4ea'
 
 ## LOPY 9
-# app_eui = '70B3D57ED003A324'
-# app_key = '7F94B66B572B110BA2C9622D430B9EDA'
-# dev_eui = '70b3d5499f211d32'
+app_eui = '70B3D57ED003A324'
+app_key = '7F94B66B572B110BA2C9622D430B9EDA'
+dev_eui = '70b3d5499f211d32'
 
 ## LOPY BOX JETSON
 # app_eui = '7532159875321598'
@@ -56,7 +56,7 @@ def LoRa_service(Q_out):
 
     ###### LoRa Socket Initialisation #######
     s = socket.socket(socket.AF_LORA, socket.SOCK_RAW)
-    s.setsockopt(socket.SOL_LORA, socket.SO_DR, 5) # fixer le débit de données LoRaWAN
+    s.setsockopt(socket.SOL_LORA, socket.SO_DR, 5) # set the LoRa bandwith
     s.setblocking(True)
 
     def __send(data):
@@ -74,19 +74,15 @@ def LoRa_service(Q_out):
 ####### UART Service #######
 def UART_service(Q_out):
     uart = UART(1, baudrate=115200, pins=["P11", "P10"]) # Tx (green): P11, Rx (yellow) : P10
-    oldTimer = time.time() # timer pour le uart heartbeat
+    oldTimer = time.time() # uart heartbeat timer
     while True:
-        time.sleep(5)
-        try:
-            data = uart.read(uart.any()).decode('utf-8').split('\n')
+        time.sleep(1)
+        data = uart.readline()
+        if data != None and len(data)>1:
             print("UART: rx :", data)
-            for msg in data:
-                if len(msg)>1:
-                    if Q_out.full():
-                        Q_out.get()
-                    Q_out.put(msg)
-        except UnicodeError:
-            print("UART: rx UnicodeError")
+            if Q_out.full():
+                Q_out.get()
+            Q_out.put(data[:-1])
 
         if (time.time() > oldTimer + 10):
             msg = "heartbeat "+dev_eui.lower()+"\n"
@@ -99,7 +95,7 @@ def UART_service(Q_out):
 
 ####### MAIN #######
 
-# inter-service communication queues
+# network output queue
 Q_out = Queue(4)
 
 _thread.start_new_thread(LoRa_service, (Q_out,))

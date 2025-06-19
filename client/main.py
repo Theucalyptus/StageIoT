@@ -47,14 +47,15 @@ t.start()
 message = {'device-id':config.get('general', 'device_id'), 'type':1}
 
 def __sendWorker():
-    waitTime = float(config.get('network', 'time_between_send'))
-    time.sleep(waitTime)
-    lastSent = {}
-    # only send a new status update if latest sensor data changed (except timestamp)
-    if lastSent != message:
-        lastSent = message.copy()
-        q_net_in.put(json.dumps(lastSent) + "\n")
-        
+    while True:
+        waitTime = float(config.get('network', 'time_between_send'))
+        time.sleep(waitTime)
+        lastSent = {}
+        # only send a new status update if latest sensor data changed (except timestamp)
+        if lastSent != message:
+            lastSent = message.copy()
+            q_net_in.put(lastSent)
+            
 threading.Thread(target=__sendWorker).start()
 
 ## Polling all sensors and update the dict containing all the information

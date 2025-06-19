@@ -52,7 +52,7 @@ def get_latitude_longitude(lat, long, azimuthDeg, z, x):
 
     return lat+blat, long+blong
 
-def construire_json(tracked_objs, lat, long, azimuth):
+def construire_msg(tracked_objs, lat, long, azimuth):
     data = {
         "device-id": "jetson1",
         "type": 2,
@@ -71,7 +71,7 @@ def construire_json(tracked_objs, lat, long, azimuth):
             "id": obj.id
         })
 
-    return json.dumps(data)
+    return data
 
 
 
@@ -183,10 +183,11 @@ class Camera:
                             #payload += f"{tr.id:<3},{int(x):<6},{int(y):<6},{int(z):<6},{tr.label:<10};"
                             tr.last_sent_cxy = (tr.cx, tr.cy)
                     
-                    obj_data_msg = construire_json(tracked.values(), self.latitude, self.longitude, self.azimuth)
-                    print("envoi de données objets", obj_data_msg)
-                    Q_out.put(obj_data_msg)
-                    t_last_send = now
+                    if len(tracked.values()) > 0:
+                        obj_data_msg = construire_msg(tracked.values(), self.latitude, self.longitude, self.azimuth)
+                        print("envoi de données objets", obj_data_msg)
+                        Q_out.put(obj_data_msg)
+                        t_last_send = now
 
                 cv2.imshow("preview", frame)
                 if cv2.waitKey(1) == ord('q'):
