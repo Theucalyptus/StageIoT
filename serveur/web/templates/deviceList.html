@@ -36,12 +36,16 @@
         <tr>
             <th>DevEUI</th>
             <th>Nom</th>
+            <th>Description</th>
+            <th>LoRa EUI</th>
             <th>Action</th>
         </tr>
         {% for i in range(devices|length) %}
         <tr>
             <td>{{ devices[i] }}</td>
             <td>{{ names[i] }}</td>
+            <td>{{ description[i] }}</td>
+            <td>{{ lora[i] }}</td>
             <td>
                 {% if superowner[i] == 1 %}
                 <a href="/edit_device/{{ devices[i] }}" >Modifier</a>

@@ -32,15 +32,15 @@ def __checkColumnExists(tablename, column):
     r = c.fetchall()
     return len(r)>= 1
 
-def __getDeviceIDFromEUI(lora_eui):
+def __getDeviceIDFromEUI(lora_eui: str):
     global db, db_cursor
     c = db_cursor
     query = "SELECT `device-id` FROM Device WHERE `lora-dev-eui` = %s;"
-    c.execute(query, (lora_eui,))
+    c.execute(query, (lora_eui.lower(),))
     res = None
     try:
         res = c.fetchone()[0]
-    except IndexError:
+    except (IndexError, TypeError):
         pass
     return res
 

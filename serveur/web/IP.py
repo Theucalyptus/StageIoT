@@ -546,6 +546,7 @@ class DeviceRegistrationForm(FlaskForm):
 class DeviceEditForm(FlaskForm):
     name = StringField('Name *', validators=[DataRequired(), Length(min=2, max=20)])
     description = TextAreaField('Description', validators=[Length(min=0, max=500)])
+    lora = StringField('LoRa EUI', validators=[Optional(), Length(min=16, max=16)])
     password = PasswordField('Curent Password *', validators=[DataRequired(), Length(min=6, max=60)])
     new_password = PasswordField('new Password', validators=[Length(min=6, max=60)], default="")
     confirm_password = PasswordField('Confirm new Password', validators=[EqualTo('new Password')], default="")
@@ -732,6 +733,9 @@ def register_device():
         deviceid = form.deviceid.data
         name = form.name.data
         hashed_password = hash_password(form.password.data)
+        loraDevEui = form.lora_dev_eui.data
+        if loraDevEui == "":
+            loraDevEui=None
 
         # Verifier si l'appareil existe déjà
         
@@ -739,11 +743,16 @@ def register_device():
             flash('Device already exists', 'danger')
             return redirect(url_for('register_device'))
 
+        temp = Interface.__getDeviceIDFromEUI(loraDevEui)
+        if temp != None:
+            flash('Provided LoRa EUI is already assigned to device ' + temp, 'danger')
+            return redirect(url_for('register_device'))
+
         username = check_user_token()
         
         # Ajouter l'appareil a la base
         if username:
-            add_device_DB(deviceid, name, hashed_password, form.lora_dev_eui.data)
+            add_device_DB(deviceid, name, hashed_password, loraDevEui)
 
             # TODO: Ajout a TTN via http ou via l'api
             # appid="stm32lora1"
@@ -833,9 +842,6 @@ def add_device_DB(deviceid, name, hashed_password, loraDevEui):
         None
     """
 
-    if loraDevEui == "":
-        loraDevEui=None
-
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = "INSERT INTO Device (`device-id`, name, password, `lora-dev-eui`) VALUES (%s, %s, %s, %s)"
@@ -893,13 +899,20 @@ def deviceList():
         
         devices= [res[i][0] for i in range(len(res))]
         superowner = [res[i][1] for i in range(len(res))]
+
         names = []
+        desc = []
+        lora = []
         for i in devices:
-            query = "SELECT `name` FROM Device WHERE `device-id` = %s"
+            query = "SELECT `name`, `description`, `lora-dev-eui` FROM Device WHERE `device-id` = %s"
             cursor.execute(query, (i,))
-            names += [j[0] for j in cursor.fetchall()]
+            res = cursor.fetchall()
+            names += [j[0] for j in res]
+            desc += [j[1] for j in res]
+            lora += [j[2] for j in res]
+
         devices = [i for i in devices]
-        return render_template('deviceList.html', username=username, devices=devices, names = names, superowner=superowner)
+        return render_template('deviceList.html', username=username, devices=devices, names = names, superowner=superowner, description=desc, lora=lora)
     else:
         flash('User not logged in', 'danger')
         return redirect(url_for('login'))
@@ -924,7 +937,7 @@ def edit_device(deviceid):
         
         db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
         cursor = db.cursor()
-        query = "SELECT name, description FROM Device WHERE `device-id` = %s"
+        query = "SELECT name, description, `lora-dev-eui` FROM Device WHERE `device-id` = %s"
         cursor.execute(query,(deviceid,))
         res = cursor.fetchall()
         
@@ -936,12 +949,18 @@ def edit_device(deviceid):
                 return redirect(url_for('edit_device', deviceid=deviceid))
             new_password = hash_password(form.new_password.data)
             description = form.description.data
-            
+            lora = form.lora.data
+
             match check_device_DB(deviceid,password):
                 case 1:
                     if check_superowner(deviceid,username):
-                        __editDevice(deviceid,name,new_password,description)
-                        return redirect(url_for('deviceList'))
+                        check = Interface.__getDeviceIDFromEUI(lora) 
+                        if check != None and check != deviceid:
+                            flash('The provided LoRa EUI is already assigned', 'danger')
+                            return redirect(url_for('edit_device'))        
+                        else:
+                            __editDevice(deviceid,name,new_password,description,lora)
+                            return redirect(url_for('deviceList'))
                     else:
                         flash('You are not the super user of this device', 'danger')
                         return redirect(url_for('deviceList'))
@@ -958,13 +977,14 @@ def edit_device(deviceid):
                 curent_description=res[0][1]
                 form.name.data = curent_name
                 form.description.data = curent_description
+                form.lora.data = res[0][2]
             return render_template("edit_device.html", device=deviceid, form=form)
     
     else :
         flash('User not logged in', 'danger')
         return redirect(url_for('login'))
 
-def __editDevice(deviceid,name,password,description):
+def __editDevice(deviceid,name,password,description,lora):
     """
     Edit the device and its association with the user.
 
@@ -985,6 +1005,7 @@ def __editDevice(deviceid,name,password,description):
         data['password']= password.decode("utf-8")
 
     data['description'] = description
+    data['lora-dev-eui'] = lora
     fields = ""
     values=[]
     for d in data:

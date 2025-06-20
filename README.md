@@ -76,5 +76,5 @@ See `client/config.conf` for all available options.
 
 
 ## Improvements / TODO:
-1. Redo device edit/list page to show lora eui if present
-2. Multiple LoRa message structure for different devices (for now they must all use the same)
+1. ~~Redo device edit/list page to show lora eui if present~~ DONE (e27751337a403dcf0026c800dae7521ffb72028f)
+2. Multiple LoRa message structure for different devices (for now they must all use the same) UPDATE: can be done quite easily by editing the common/lora functions server side to take the deviceid, and provide a list of format.
