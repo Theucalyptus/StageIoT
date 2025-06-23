@@ -20,8 +20,8 @@ services:
   wui:
     container_name: iot-pcd-wui
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: serveur/Dockerfile
     restart: always
     network_mode: host
     ports:

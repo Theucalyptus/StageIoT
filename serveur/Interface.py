@@ -6,7 +6,7 @@ import time
 import utils
 import datetime
 import requests
-
+from common.msgTypes import MessageTypes
 from common import lora
 
 db : mysql.connector.MySQLConnection
@@ -88,9 +88,9 @@ def data_LoRa_handler(message,device):
     deviceid = __getDeviceIDFromEUI(device)
     if deviceid != None:
         type = lora.get_message_type(message)
-        if type == 1:
+        if type == MessageTypes.DEVICE_UPDATE:
             message = lora.lora_to_sample(message)
-        elif type == 2:
+        elif type == MessageTypes.OBJECT_REPORT:
             message = lora.lora_to_objects(message)
         else:
             print("Unkown message type")

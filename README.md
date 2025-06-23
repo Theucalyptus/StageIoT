@@ -70,9 +70,14 @@ See `client/config.conf` for all available options.
 - If adding a completly new sensor, in `client/sensors.py` create a new class inheriting the 'Sensor' class, and instance it in main. Add this instance to the `sensorsList`. 
 - To declare a new data field (for both a new or existing sensor), add a new line like `self.data.setdefault("my_data_field")` in the `__registerDataField` function of your sensor class.
 - The two steps above are enough to have your new sensor (and/or) data field logged localy. For sending the data onto the network, please see below.
-- If using LoRaWAN, you must also edit `common/lora.py`. Add the data field's name in `SENSOR_MSG` to add your new data field to the network messages. You also need to specify the data type of the field in `FIELDS_TYPE` (see [here](https://docs.python.org/3/library/struct.html#format-characters) for more informations on available data types). **These modifications must be made on both the server and the client. [see TODO#1]**
+- If using LoRaWAN, you must also edit `common/lora.py`. Add the data field's name in `SENSOR_MSG` to add your new data field to the network messages. You also need to specify the data type of the field in `FIELDS_TYPE` (see [here](https://docs.python.org/3/library/struct.html#format-characters) for more informations on available data types). **These modifications must be made on both the server and the client. [see TODO#2]**
 - For any other networking options using the JSON message format, no additional step is required.
 
+#### Fixing permission for the camera.
+If you run into errors with the camera, try the `fix-udev.sh` script for setting permissions allowing the program to access the camra (and only the camera) instead of launching as root.
+
+#### UART permissions
+If you run into permission issues with UART, you should check which group has read/write permission on the serial interface, and add the user running the program to this group. The group is usually `dialout` or `uucp`. You can see the group with `stat -C "%G" /dev/<your serial interface>`. To add a user to a group, check your distribution's wiki (but often its `sudo usermod -a -G <user> <group>`, you need to logout and login again for changes to apply). Running the program as root is *not recommanded*.
 
 
 ## Improvements / TODO:

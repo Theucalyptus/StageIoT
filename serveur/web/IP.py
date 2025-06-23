@@ -17,6 +17,8 @@ import math
 import mysql.connector
 import mysql.connector.abstracts
 import uuid
+from common.msgTypes import MessageTypes
+import time
 
 import Interface
 
@@ -149,6 +151,11 @@ def accueil():
 def objects():
     return render_template('objects.html')
 
+
+@app.route('/connecivityCheck', methods=['GET'])
+def connCheck():
+    return jsonify(time.time()), 200
+
 @app.route('/post_data', methods=['POST'])
 def post_data():
     """
@@ -165,11 +172,11 @@ def post_data():
         try:
             data = json.loads(raw_data)
             print(data)
-            if data['type'] == 1:
+            if data['type'] == MessageTypes.DEVICE_UPDATE:
                 # device status update
                 Q_out.put(data.copy())
                 add_data_to_cache(data)
-            elif data['type'] == 2:
+            elif data['type'] == MessageTypes.OBJECT_REPORT:
                 # object observation
                 for object in data['objects']:
                     oTemp = object.copy()

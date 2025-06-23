@@ -5,9 +5,8 @@ import requests
 from config import config
 from requests.exceptions import ConnectionError
 import json
-
+import time
 from common import lora
-
 
 logger = logging.getLogger(__name__)
 
@@ -61,21 +60,41 @@ class UartService:
                 
 class HTTPService:
 
-    def __init__(self, q_in, q_out):
-        host = config.get('network.http', 'host')
-        port = config.get('network.http', 'port')
+    host = config.get('network.http', 'host')
+    port = config.get('network.http', 'port')
 
-        self.url = "http://"+host+":"+port+"/post_data"
+    baseUrl = "http://"+host+":"+port
+    pushUrl = baseUrl+"/post_data"
+    connCheckUrl = baseUrl + "/connectivityCheck"
+
+    def __init__(self, q_in, q_out):
+
         self.q_in = q_in
         self.q_out = q_out
 
+        self.isUp = False
+        self.lastConnCheck = None
+
     def run(self):
-        logger.info("http service running with endpoint " + self.url)
+        logger.info("http service running with endpoint " + HTTPService.pushUrl)
         self.worker = threading.Thread(target=self.__run)
         self.worker.start()
 
     def __run(self):
         while True:
+            # check for connectivity
+            while not self.isUp:
+                try:
+                    # perform conn check
+                    r = requests.get(HTTPService.connCheckUrl)
+                    print("todo: process time response !")
+                    self.isUp = True
+                except:                    
+                    logger.info('http service awaiting for internet')
+                    time.sleep(5)
+
+
+            # connection is UP
             if not self.q_in.empty():
                 self.__send(json.dumps(self.q_in.get()) + "\n")
                 
@@ -83,6 +102,8 @@ class HTTPService:
     def __send(self, msg):
         logger.info("http sending " + msg.removesuffix("\n"))
         try:
-            requests.post(self.url, data=msg)
+            requests.post(HTTPService.pushUrl, data=msg)
         except ConnectionError:
-            logger.warning("http send failed. Please check internet access and network settings")
+            self.isUp = False # connection seems to be down
+            self.q_in.put(msg) # re-adding the message to the queue
+            logger.warning("http send failed. Network may be down")

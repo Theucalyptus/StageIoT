@@ -1,6 +1,7 @@
 import struct
 import json
 import logging
+from common.msgTypes import MessageTypes
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ OBJECTS_LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus
                 "cat","chair","cow","diningtable","dog","horse","motorbike","person",
                 "pottedplant","sheep","sofa","train","tvmonitor"] + ['unkown']
 OBJECT_MSG_HEADER = ['type', 'timestamp']
-OBJECT_ITEM_MSG = ['latitude', 'longitude', 'label']
+OBJECT_ITEM_MSG = ['latitude', 'longitude', 'label', 'id']
 
 FIELDS_TYPES = {'type':'H',
                 'timestamp':'d',
@@ -31,13 +32,14 @@ FIELDS_TYPES = {'type':'H',
                 'roll':'f',
                 'azimuth':'f',
                 'altitude':'f',
-                'label':'H' # object label are transformed into unsigned short, using the table provided above for label/number correspondance
+                'label':'H', # object label are transformed into unsigned short, using the table provided above for label/number correspondance
+                'id':'i'
                 } 
 
 def data_to_lora(data):
-    if data['type'] == 1:
+    if data['type'] == MessageTypes.DEVICE_UPDATE:
         return sample_to_lora(data)
-    elif data['type'] == 2:
+    elif data['type'] == MessageTypes.OBJECT_REPORT:
         return objects_to_lora(data)
     else:
         raise ValueError()

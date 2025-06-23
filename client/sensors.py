@@ -6,7 +6,8 @@ import csv
 import datetime
 from os.path import isfile
 from queue import Empty
-
+import can
+from config import config
 from websockets.sync.server import serve
 from websockets.exceptions import *
 from buffer import Buffer
@@ -120,11 +121,45 @@ class CANBus(Sensor):
     def __init__(self, Q_out, name="canbus", dataRecorder=CSVWriter):
         super().__init__(name, dataRecorder)
         self.q_out = Q_out
+        
+        interface = config.get('sensors.canbus', 'interface')
+        channel = config.get('sensors.canbus', 'channel')
+        bitrate = config.getint('sensors.canbus', 'bitrate')        
+        self.bus = can.Bus(interface=interface, channel=channel, bitrate=bitrate)
+
+    def __registerDataFields(self):
+        raise NotImplementedError
+
+    def __send(self, data):
+        msg = can.Message(arbitration_id=0xC0FFEE, data=data, is_extended_id=True)
+        try:
+            self.bus.send(msg)
+            print(f"Message sent on {self.bus.channel_info}")
+        except can.CanError:
+            print("Message NOT sent")
+
+    def __deserialize(self, data):
+        raise NotImplementedError
+
+    def __recv(self):
+        # filters = [
+        #     {"can_id": 0x451, "can_mask": 0x7FF, "extended": False},
+        #     {"can_id": 0xA0000, "can_mask": 0x1FFFFFFF, "extended": True},
+        # ]
+
+        for msg in self.bus:
+            data = msg.data
+            logger.info("CAN recv " + str(data))
+            deserialized = self.deserialize(data)
+            self.newSampleHandler(deserialized)
 
     def __run(self):
-        logger.info("canbus monitor started")
-        while True:
-            time.sleep(10)
+        logger.info("CAN bus monitor started")                     
+        if not self.q_in.empty():
+            data = self.q_in.get()
+            logger.info("CAN sending " + str(data))
+            self.__send(data)
+        self.__recv()
 
     def run(self):
         self.thread = threading.Thread(target=self.__run, args=())
