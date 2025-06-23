@@ -152,7 +152,7 @@ def objects():
     return render_template('objects.html')
 
 
-@app.route('/connecivityCheck', methods=['GET'])
+@app.route('/connectivityCheck', methods=['GET'])
 def connCheck():
     return jsonify(time.time()), 200
 
