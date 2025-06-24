@@ -23,7 +23,7 @@ class Sensor:
     def __init__(self, name, dataRecorder):
         self.name = name
         self.data = {}
-        self.data.setdefault("timestamp")
+        self.data.setdefault("timestamp", 0)
         self.outbuffer = Buffer()
         self.recorder = dataRecorder(self.name)
 
@@ -32,8 +32,13 @@ class Sensor:
 
     def newSampleHandler(self, sample):
         present = set()
+        if 'timestamp' in sample:
+            if float(sample['timestamp']) < float(self.data['timestamp']):
+                        logger.warning('recevied an out-of-order sample, ignoring')
+                        return
+            
         for field in self.data:
-            if field in sample:
+            if field in sample:            
                 self.data[field] = sample[field]
                 present.add(field)
         
