@@ -10,6 +10,12 @@ from common import lora
 
 logger = logging.getLogger(__name__)
 
+
+TIMEGAP = 0 # difference between client local time and server time (approx)
+            # useful to correct timestamps because the nVidia jetson doesn't
+            # a persistent RTC. Though for now works with networks that
+            # allow for NTP so shouldn't be needed 
+
 class UartService:
 
     def __init__(self, q_in, q_out):
@@ -17,11 +23,15 @@ class UartService:
         device = config.get('network.uart', 'device')
         speed = int(config.get('network.uart', 'speed'))
 
+
+
         logger.info("uart setup using device " + device + " bauds " + str(speed))
         self.serial = serial.Serial(device, speed)
         self.outBuffer = ""
         self.q_in = q_in
         self.q_out = q_out
+        self.isUp = True # for LoRa, we don't really have a way to check  if the device has connectivity
+                         # so we just assume that it is
 
     def run(self):
         logger.info("uart service running")
@@ -86,8 +96,9 @@ class HTTPService:
             while not self.isUp:
                 try:
                     # perform conn check
-                    r = requests.get(HTTPService.connCheckUrl)
-                    print("todo: process time response !")
+                    r = requests.get(HTTPService.connCheckUrl) # sends back the current server time
+                    serverTime = float(r.text)
+                    print("time gap", abs(time.time() - serverTime))
                     self.isUp = True
                 except:                    
                     logger.info('http service awaiting for internet')
@@ -96,13 +107,14 @@ class HTTPService:
 
             # connection is UP
             if not self.q_in.empty():
-                self.__send(json.dumps(self.q_in.get()) + "\n")
+                self.__send(self.q_in.get())
                 
 
     def __send(self, msg):
-        logger.info("http sending " + msg.removesuffix("\n"))
+        serialized = json.dumps(msg)
+        logger.info("http sending " + serialized)
         try:
-            requests.post(HTTPService.pushUrl, data=msg)
+            requests.post(HTTPService.pushUrl, data=serialized)
         except ConnectionError:
             self.isUp = False # connection seems to be down
             self.q_in.put(msg) # re-adding the message to the queue
