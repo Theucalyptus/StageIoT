@@ -105,5 +105,7 @@ while True:
             pass
     
     if coordChanged:
-        cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
-
+        try:
+            cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
+        except NameError:
+            pass

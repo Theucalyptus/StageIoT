@@ -77,6 +77,8 @@ class HTTPService:
     pushUrl = baseUrl+"/post_data"
     connCheckUrl = baseUrl + "/connectivityCheck"
 
+    timeout = config.getint('network.http', 'timeout')
+
     def __init__(self, q_in, q_out):
 
         self.q_in = q_in
@@ -96,7 +98,7 @@ class HTTPService:
             while not self.isUp:
                 try:
                     # perform conn check
-                    r = requests.get(HTTPService.connCheckUrl) # sends back the current server time
+                    r = requests.get(HTTPService.connCheckUrl, timeout=HTTPService.timeout) # sends back the current server time
                     serverTime = float(r.text)
                     print("time gap", abs(time.time() - serverTime))
                     self.isUp = True
@@ -114,7 +116,7 @@ class HTTPService:
         serialized = json.dumps(msg)
         logger.info("http sending " + serialized)
         try:
-            requests.post(HTTPService.pushUrl, data=serialized)
+            requests.post(HTTPService.pushUrl, data=serialized, timeout=HTTPService.timeout)
         except ConnectionError:
             self.isUp = False # connection seems to be down
             self.q_in.put(msg) # re-adding the message to the queue
