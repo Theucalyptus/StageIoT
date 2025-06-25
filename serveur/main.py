@@ -8,6 +8,8 @@ import MQTT
 import web.IP as IP
 import utils
 import os
+import signal
+
 
 Config={}
 
@@ -108,6 +110,16 @@ def init_config():
                 
     #print(Config)
 
+
+
+def stop_server(*args):
+    print("Stop server called", args)
+    sys.exit()
+
+signal.signal(signal.SIGTERM, stop_server)
+signal.signal(signal.SIGINT, stop_server)
+
+
 def run_server():
 
     """
@@ -125,9 +137,9 @@ def run_server():
         'port' : int(Config["APP_port"])
     }
     # création des threads
-    threadMQTT = threading.Thread(target=MQTT.MQTTnode,args=[coordsTTN,Q_Lora])
-    threadIf = threading.Thread(target=Interface.Ifnode,args=[Q_Lora,Q_4G,Config])
-    threadIP = threading.Thread(target=IP.IPnode,args=[Q_4G,Config])
+    threadMQTT = threading.Thread(target=MQTT.MQTTnode,args=[coordsTTN,Q_Lora], daemon=True)
+    threadIf = threading.Thread(target=Interface.Ifnode,args=[Q_Lora,Q_4G,Config], daemon=True)
+    threadIP = threading.Thread(target=IP.IPnode,args=[Q_4G,Config], daemon=True)
 
     # start les threads
     try:
@@ -135,9 +147,12 @@ def run_server():
         threadIP.start()
         threadIf.start()
 
+        threadIf.join()
+        threadIP.join()
+        threadMQTT.join()
+
     except (KeyboardInterrupt, SystemExit):
-        
-        sys.exit()
+        stop_server()
     
 def main():
 
