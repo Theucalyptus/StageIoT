@@ -77,6 +77,7 @@ def __sendWorker():
         lastSent = {}
         # only send a new status update if latest sensor data changed (except timestamp)
         if lastSent != message:
+            message['timestamp'] = time.time()
             lastSent = message.copy()
             if MAIN_NET.isUp:
                 q_netMain_in.put(lastSent)
@@ -90,7 +91,6 @@ threading.Thread(target=__sendWorker).start()
 
 ## Polling all sensors and update the dict containing all the information
 while True:
-    message['timestamp'] = time.time()
     coordChanged=False
     for sensor in sensorsList:
         try:

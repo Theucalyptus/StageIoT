@@ -750,10 +750,11 @@ def register_device():
             flash('Device already exists', 'danger')
             return redirect(url_for('register_device'))
 
-        temp = Interface.__getDeviceIDFromEUI(loraDevEui)
-        if temp != None:
-            flash('Provided LoRa EUI is already assigned to device ' + temp, 'danger')
-            return redirect(url_for('register_device'))
+        if loraDevEui != None:
+            temp = Interface.__getDeviceIDFromEUI(loraDevEui)
+            if temp != None:
+                flash('Provided LoRa EUI is already assigned to device ' + temp, 'danger')
+                return redirect(url_for('register_device'))
 
         username = check_user_token()
         
@@ -1141,13 +1142,13 @@ def __getDeviceLatestLocation(deviceid):
         raise NoLocationDataException
     return device_location
 
-def __getNearbyObjects(deviceid, seuil=100):
+def __getNearbyObjects(deviceid, seuil):
     """
-        Get the list of all objects detected other devices in the specified range.
+        Get the list of all objects detected **by other devices** in the specified range.
     """
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    
+    print("getNearbyObjects", seuil, "called")
     try:
         latitude, longitude = __getDeviceLatestLocation(deviceid)
 
@@ -1165,21 +1166,25 @@ def __getNearbyObjects(deviceid, seuil=100):
         # recuperer les objets vus/détectés par ces appareils
         objects = {}
         distances = {}
-        for nlist in neighbours:
-            neighbour = nlist[0]
+        for neighbour in neighbours:
             if neighbour in objects_storage:
-                distance = calculate_distance(latitude, longitude, objects_storage[neighbour][0]['latitude'], objects_storage[neighbour][0]['longitude'])
-                objects[neighbour] = objects_storage[neighbour]
-                distances[neighbour] = distance
+                temp = objects_storage[neighbour]
+                objects[neighbour] = temp
+                distances[neighbour] = {}
+                for (objId, objData) in temp.items():
+                    distance = calculate_distance(latitude, longitude, objData['latitude'], objData['longitude'])
+                    distances[neighbour][objId] = distance
+            else:
+                print("no objects close enough for neighbour", neighbour)
 
         return objects, distances
     
     except NoLocationDataException:
         return {}, {}
 
-@app.route('/objets_proches/<deviceid>', methods=['GET']) 
+@app.route('/nearby_objects/<deviceid>', methods=['GET']) 
 @auth.login_required
-def objets_proches(deviceid):
+def nearby_objects(deviceid):
     """
     Retrieve nearby objects based on the given device ID.
 
@@ -1190,9 +1195,17 @@ def objets_proches(deviceid):
         A rendered HTML template with the nearby objects.
 
     """
-    size = request.args.get("size", 1) 
+    defSearchSize = 100
+
+    size = request.args.get("size", defSearchSize) 
+    try:
+        size = float(size)
+    except ValueError:
+        size = defSearchSize
+        print("request contained invalid size parameter, using default")
+    
     data, distances = __getNearbyObjects(deviceid, size)
-    return render_template('objets_proches.html', data=data, distances=distances)
+    return render_template('nearby_objects.html', data=data, distances=distances, size=size)
 
 
 """==============================================================="""
@@ -1532,8 +1545,8 @@ def apiNeighbourList(deviceid):
     
     return jsonify(neighbours)
 
-@app.route('/api/objets_proches/<deviceid>', methods=['GET'])
-def apiObjets_proches(deviceid):
+@app.route('/api/nearby_objects/<deviceid>', methods=['GET'])
+def apinearby_objects(deviceid):
     """
     Retrieve nearby objects based on the given device ID.
     

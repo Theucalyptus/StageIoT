@@ -33,6 +33,9 @@ def __checkColumnExists(tablename, column):
     return len(r)>= 1
 
 def __getDeviceIDFromEUI(lora_eui: str):
+    if lora_eui == "" or lora_eui == None:
+        return None
+    
     global db, db_cursor
     c = db_cursor
     query = "SELECT `device-id` FROM Device WHERE `lora-dev-eui` = %s;"

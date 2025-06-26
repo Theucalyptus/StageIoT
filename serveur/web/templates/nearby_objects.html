@@ -50,46 +50,40 @@
             transition: background-color 0.3s ease;
         }
     </style>
-    <script>
-        function speakObjects() {
-            const synth = window.speechSynthesis;
-            let objText = '';
-            {% for device, objects in data.items() %}
-                {% for obj in objects %}
-                    objText += '{{ obj.label[0:-1] }}';
-                {% endfor %}
-            {% endfor %}
-            console.log(objText);
-            const utterThis = new SpeechSynthesisUtterance(objectsText);
-            synth.speak(utterThis);
-        }
-    </script>
 </head>
 <body class="light-theme">
     <div>
         <button id="themeToggle" class="btn btn-secondary ">Toggle Dark Mode</button>
         <button class="btn btn-primary " onclick="window.location.href='/'">Home</button>
     </div>  
-    <h1>Objets Proches</h1>
+    <h1>Nearby objects</h1>
+    <p>This page displays the details of all objects/obstacles reported by other devices in a given perimeter.</p>
+    <form method="get">
+        <label for="size">Distance (max):</label>
+        <input type="number" id="size" name="size">
+        <button type="submit">OK</button>
+    </form>
+    
+
     {% if data %}
         <ul>
         {% for device, objects in data.items() %}
             {% set distance = distances[device] %}
             <div>
-                <li> Objects seen by : {{ device }} </li>
-                <div id="objectsContainer">
-                    <ul>
-                    {% for obj in objects %}
-                        <li>{{ obj.label }} : {{ obj.distance }}, distance : {{distance}} </li>
-                    {% endfor %}
-                    </ul>
+                <div id="objectsContainer"> <h5>Objects seen by : {{ device }}</h5>
+                    <div id="objectsContainer">
+                        <ul>
+                        {% for objId, obj in objects.items() %}
+                            <li>ID: {{ obj.id }}  Label: {{ obj.label }} Distance : {{ '{0:0.2f}'.format(distance[objId]) }}m</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
                 </div>
             </div>
         {% endfor %}
         </ul>
-        <button class="btn btn-primary " onclick="speakObjects()">Énoncer les Objets</button>
     {% else %}
-        <p>Aucun objet proche trouvé.</p>
+        <p>No objects were found in the given perimeter ({{ size }} meters).</p>
     {% endif %}
 
     <script src="{{ url_for('static', filename='index.js') }}"></script>
