@@ -26,16 +26,17 @@ class Sensor:
         self.data.setdefault("timestamp", 0)
         self.outbuffer = Buffer()
         self.recorder = dataRecorder(self.name)
+        self.stopVar = False # indicates if the sensor should be logging or not
 
     def __registerDataFields(self):
         raise NotImplementedError
 
     def newSampleHandler(self, sample):
         present = set()
-        if 'timestamp' in sample:
-            if float(sample['timestamp']) < float(self.data['timestamp']):
-                        logger.warning('recevied an out-of-order sample, ignoring')
-                        return
+        #if 'timestamp' in sample:
+        #    if float(sample['timestamp']) < float(self.data['timestamp']):
+        #                logger.warning('recevied an out-of-order sample, ignoring')
+        #                return
             
         for field in self.data:
             if field in sample:            
@@ -64,6 +65,10 @@ class Sensor:
     def run(self):
         raise NotImplementedError
 
+    def stop(self):
+        self.stopVar = True
+        self.thread.join()
+
 class Phone(Sensor):
 
     PORT = 6789
@@ -89,7 +94,7 @@ class Phone(Sensor):
         
     def __conn_handler(self, websocket):
         try:
-            while True:
+            while not self.stopVar:
                 if not self.q_in.empty():
                     data = self.q_in.get()
                     logger.info("sending " + str(data))
@@ -106,7 +111,7 @@ class Phone(Sensor):
 
                 except TimeoutError:
                     pass
-        
+            websocket.close()
         except ConnectionClosedError:
             logger.info("connection closed")
         except TimeoutError:
@@ -114,12 +119,19 @@ class Phone(Sensor):
 
     def __run(self):
         logger.info("websocket server listening on port " + str(Phone.PORT))
-        with serve(self.__conn_handler, "0.0.0.0", Phone.PORT) as server:
-            server.serve_forever()
+        self.__server  = serve(self.__conn_handler, "0.0.0.0", Phone.PORT)
+        self.__server.serve_forever()
 
     def run(self):
         self.thread = threading.Thread(target=self.__run, args=())
         self.thread.start()
+
+    def stop(self):
+        logger.info("websocket server stoping")
+        self.__server.shutdown()
+        self.recorder.end()
+        super().stop()
+
 
 class CANBus(Sensor):
 
@@ -160,11 +172,13 @@ class CANBus(Sensor):
 
     def __run(self):
         logger.info("CAN bus monitor started")                     
-        if not self.q_in.empty():
-            data = self.q_in.get()
-            logger.info("CAN sending " + str(data))
-            self.__send(data)
-        self.__recv()
+        while not self.stop:
+            if not self.q_in.empty():
+                data = self.q_in.get()
+                logger.info("CAN sending " + str(data))
+                self.__send(data)
+            self.__recv()
+        print("TODO: can bus end")
 
     def run(self):
         self.thread = threading.Thread(target=self.__run, args=())

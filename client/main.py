@@ -7,6 +7,7 @@ from buffer import Buffer
 import network
 import sensors
 from config import config
+import signal
 
 from spatial_object_perso import Camera
 
@@ -35,10 +36,10 @@ if config.getboolean('sensors', 'canbus'):
     canbus.run()
 
 ### Object Detection
+cam = None
 if config.getboolean('sensors', 'camera'):
     cam = Camera()
-    t = threading.Thread(target=cam.ObjectDetection, args=(q_netMain_in,))
-    t.start()
+    cam.run(q_netMain_in)
 
 
 
@@ -70,8 +71,12 @@ ALT_NET = __enableNetInterface(alternative, q_netAlt_in, q_netAlt_out)
 
 message = {'device-id':config.get('general', 'device_id'), 'type':1}
 
+
+exit = False
+
 def __sendWorker():
-    while True:
+    global exit
+    while not exit:
         waitTime = float(config.get('network', 'time_between_send'))
         time.sleep(waitTime)
         lastSent = {}
@@ -87,25 +92,62 @@ def __sendWorker():
                 logger.info("all networks are down. the data is still logged localy.")
 
 
-threading.Thread(target=__sendWorker).start()
+t = threading.Thread(target=__sendWorker)
+t.start()
+
+def stop(*args):
+    logger.info("Graceful exit. Stopping all workers and saving data (can take a few seconds)")
+    global exit
+    exit = True
+    for sensor in sensorsList:
+        logger.debug("waiting for sensor " + sensor.name + " to stop...")
+        sensor.stop()
+    
+    if cam:
+        logger.debug("Waiting for camera worker to stop...")
+        cam.stop()
+    
+    logger.debug("Waiting for main network to stop ...")
+    MAIN_NET.stop()
+    if ALT_NET:
+        logger.debug("Waiting for alt network to stop...")
+        ALT_NET.stop()
+    logger.debug("Waiting for send worker to stop...")
+    t.join()
+
+signal.signal(signal.SIGINT, stop)
+signal.signal(signal.SIGTERM, stop)
 
 ## Polling all sensors and update the dict containing all the information
-while True:
-    coordChanged=False
-    for sensor in sensorsList:
-        try:
-            sample = sensor.getLatestSample()
-            for key, value in sample.items():
-                if key != "timestamp":
-                    if key not in message or value != message[key]:
-                        message[key] = value
-                    if key in ['latitude', 'longitude', 'azimuth']:
-                        coordChanged = True
-        except sensors.NoSampleAvailable:
-            pass
-    
-    if coordChanged:
-        try:
-            cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
-        except NameError:
-            pass
+def run():
+    global exit
+    while not exit:
+        start = time.perf_counter_ns()
+        coordChanged=False
+        for sensor in sensorsList:
+            try:
+                sample = sensor.getLatestSample()
+                for key, value in sample.items():
+                    if key != "timestamp":
+                        if key not in message or value != message[key]:
+                            message[key] = value
+                        if key in ['latitude', 'longitude', 'azimuth']:
+                            coordChanged = True
+            except sensors.NoSampleAvailable:
+                pass
+        
+        if coordChanged:
+            try:
+                cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
+            except NameError:
+                pass
+        
+        d = time.perf_counter_ns() - start
+        if d < 1000000:
+            time.sleep(d/1000000000)
+        
+if __name__=="__main__":
+    try:
+        run()
+    except KeyboardInterrupt:
+        stop()

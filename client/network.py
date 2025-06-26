@@ -22,7 +22,7 @@ class UartService:
         global config
         device = config.get('network.uart', 'device')
         speed = int(config.get('network.uart', 'speed'))
-
+        self.stopVar = False
 
 
         logger.info("uart setup using device " + device + " bauds " + str(speed))
@@ -35,11 +35,11 @@ class UartService:
 
     def run(self):
         logger.info("uart service running")
-        self.worker = threading.Thread(target=self.__run)
-        self.worker.start()
+        self.thread = threading.Thread(target=self.__run)
+        self.thread.start()
 
     def __run(self):
-        while True:
+        while not self.stopVar:
             self.__recv()
             if not self.q_in.empty():
                 self.__send(self.q_in.get())
@@ -67,7 +67,11 @@ class UartService:
                     self.outBuffer = msgl[-1]
         except UnicodeDecodeError as e:
             logger.warning('uart message invalid ' + str(e))
-                
+
+    def stop(self):
+        self.stopVar = True
+        self.thread.join()
+
 class HTTPService:
 
     host = config.get('network.http', 'host')
@@ -84,18 +88,19 @@ class HTTPService:
         self.q_in = q_in
         self.q_out = q_out
 
+        self.stopVar = False
         self.isUp = False
         self.lastConnCheck = None
 
     def run(self):
         logger.info("http service running with endpoint " + HTTPService.pushUrl)
-        self.worker = threading.Thread(target=self.__run)
-        self.worker.start()
+        self.thread = threading.Thread(target=self.__run)
+        self.thread.start()
 
     def __run(self):
-        while True:
+        while not self.stopVar:
             # check for connectivity
-            while not self.isUp:
+            while not self.isUp and not self.stopVar:
                 try:
                     # perform conn check
                     r = requests.get(HTTPService.connCheckUrl, timeout=HTTPService.timeout) # sends back the current server time
@@ -121,3 +126,7 @@ class HTTPService:
             self.isUp = False # connection seems to be down
             self.q_in.put(msg) # re-adding the message to the queue
             logger.warning("http send failed. Network may be down")
+
+    def stop(self):
+        self.stopVar = True
+        self.thread.join()

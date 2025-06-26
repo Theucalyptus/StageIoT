@@ -44,7 +44,9 @@ class CSVWriter:
                              # threads
 
     def end(self):
+        logger.info("csvwriter flushing to disk.")
         if not self.outFile.closed:
+            # flush and close the file
             self.outFile.close()
 
 class DBWriter:
