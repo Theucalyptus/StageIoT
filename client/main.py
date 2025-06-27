@@ -136,11 +136,8 @@ def run():
             except sensors.NoSampleAvailable:
                 pass
         
-        if coordChanged:
-            try:
-                cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
-            except NameError:
-                pass
+        if coordChanged and cam:
+            cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
         
         d = time.perf_counter_ns() - start
         if d < 1000000:
