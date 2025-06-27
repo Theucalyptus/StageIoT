@@ -83,9 +83,45 @@ def save_object_DB(object):
     global db, db_cursor
     c = db_cursor
     table = "Objects"
-    object['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
-    query = "INSERT INTO " + table +" (timestamp, seenby, latitude, longitude, label) VALUES (%(timestamp)s, %(seenby)s, %(latitude)s, %(longitude)s, %(label)s)"
-    c.execute(query, (object))
+    temp = object.copy()
+    temp['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
+    
+
+    device = object["seenby"]
+    query = "SELECT * FROM Device WHERE `device-id`=%s"
+    c.execute(query,(device,))
+    res = c.fetchall()
+    if len(res)==0:
+        print("object seen by unkown device, ignoring")
+        return
+
+
+    # if object already has a permanent id, it should be in the DB and we have to update its record
+    if "id" in object:
+        print("Update existing object record")
+        fields = ""
+        values=[]
+        id = temp.pop('id') # remove id
+        for d in temp:
+            fields+="`"+ d+"`=%s ,"
+            values.append(temp[d])
+        fields=fields[:-2]
+        values.append(id)
+        query = "UPDATE " + table + " SET " + fields + " WHERE id=%s"
+        c.execute(query, (values))
+
+    else:
+        # the object is new, so assign it a permanent id and create a new record in the table
+        print("inserting new object in DB")
+        query = "INSERT INTO " + table +" (timestamp, seenby, latitude, longitude, label, tempId) VALUES (%(timestamp)s, %(seenby)s, %(latitude)s, %(longitude)s, %(label)s, %(tempId)s)"
+        c.execute(query, (temp))
+        # get the record for the newly added record
+        query = "SELECT id FROM " + table + " WHERE seenby=%s AND tempId=%s ORDER BY timestamp DESC LIMIT 1;"
+        c.execute(query, ([temp['seenby'], temp['tempId']]))
+        res = c.fetchone() # should only ever match one object
+        object["id"] = res[0]
+
+
 
 def data_LoRa_handler(message,device):
     deviceid = __getDeviceIDFromEUI(device)

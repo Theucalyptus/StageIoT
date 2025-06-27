@@ -171,7 +171,6 @@ def post_data():
         raw_data= raw_data.removesuffix("\n")
         try:
             data = json.loads(raw_data)
-            print(data)
             if data['type'] == MessageTypes.DEVICE_UPDATE:
                 # device status update
                 Q_out.put(data.copy())
@@ -180,15 +179,21 @@ def post_data():
                 # object observation
                 for object in data['objects']:
                     oTemp = object.copy()
+                    oTemp["tempId"] = oTemp.pop("id") # move id as temp id
                     oTemp["timestamp"]=data['timestamp']
                     oTemp['seenby']=data['device-id']
-                    # Ajouter les données à la base de données
-                    Interface.save_object_DB(oTemp.copy())
+                    if data['device-id'] in objects_storage:
+                        if oTemp["tempId"] in objects_storage[data['device-id']]:
+                            oTemp["id"] = objects_storage[data['device-id']][oTemp["tempId"]]["id"]
+                    # Ajouter les données à la base de données, donne un Id permanent si pas déjà connu
+                    Interface.save_object_DB(oTemp)
+                    if not "id" in oTemp:
+                        return jsonify({"status": "error", "message": "Unkown/Unregistered device"}), 200
                     # Ajouter les données à la liste d'objets
                     if data['device-id'] in objects_storage:
-                        objects_storage[data['device-id']][oTemp['id']] = oTemp
+                        objects_storage[data['device-id']][oTemp['tempId']] = oTemp
                     else:
-                        objects_storage[data['device-id']] = {oTemp['id']:oTemp}
+                        objects_storage[data['device-id']] = {oTemp['tempId']:oTemp}
             else:
                 logging.error("Not Implemented message type " + str(data['type']))
 
@@ -751,6 +756,7 @@ def register_device():
             return redirect(url_for('register_device'))
 
         if loraDevEui != None:
+            loraDevEui = loraDevEui.lower()
             temp = Interface.__getDeviceIDFromEUI(loraDevEui)
             if temp != None:
                 flash('Provided LoRa EUI is already assigned to device ' + temp, 'danger')
