@@ -52,7 +52,7 @@
         }).addTo(map);
 
         const markers = {};
-        var object_markers = [];
+        var object_markers = {};
         var objectIcon = new L.Icon({
             iconUrl: "{{ url_for('static', filename='leaflet-color-markers/img/marker-icon-2x-red.png') }}",
             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
@@ -61,6 +61,7 @@
             popupAnchor: [1, -34],
             shadowSize: [41, 41]
         });
+
         
         function radians(degrees) {
             return degrees / 180 * Math.PI;
@@ -82,21 +83,20 @@
         
         
         function updateUserPositions() {
-                object_markers.forEach(m => {
+               /*  object_markers.forEach(m => {
                     map.removeLayer(m);
-                });
+                }); */
                 fetch('/get_recent_data')
                 .then(response => response.json())
                 .then(data => {
-
-                    object_markers = []
                     for(device in data){
                         const { name, latitude, longitude, timestamp } = data[device];
                         const deviceid = data[device]['device-id']
                         if (!markers[deviceid]) {
                             markers[deviceid] = L.marker([latitude, longitude]).addTo(map);
+                        }else{
+                            markers[deviceid].setLatLng([latitude, longitude]);
                         }
-                        markers[deviceid].setLatLng([latitude, longitude]);
                         let additionalInfo = "";
                         fetch('/api/getObject/'+deviceid)
                             .then(response => response.json())
@@ -104,9 +104,15 @@
                                 if (data) {
                                     additionalInfo = '<b> Objects:</b><br>' + data.map(obj => `${obj.label.trim()} (ID: ${obj.id}), ${haversine(obj.latitude, obj.longitude, latitude, longitude)} m`).join('<br>');
                                     data.forEach(obj => {
-                                        m = L.marker([obj.latitude, obj.longitude], {icon: objectIcon}).addTo(map);
-                                        m.bindPopup('<b> Object : ' +obj.label+ ` (ID: ${obj.id})</b></br>Reported by : `+ name);
-                                        object_markers.push(m);
+                                        const id_temp = obj.id;
+                                        if(!object_markers[id_temp]){
+                                            m = L.marker([obj.latitude, obj.longitude], {icon: objectIcon}).addTo(map);
+                                            object_markers[id_temp] = m;
+                                            m.bindPopup('<b> Object : ' +obj.label+ ` (ID: ${obj.id})</b></br>Reported by : `+ name);
+                                        }else{
+                                            object_markers[id_temp].setLatLng([obj.latitude, obj.longitude]);
+                                        }
+                                        
                                     });
                                 }
                             })
