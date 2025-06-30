@@ -17,6 +17,8 @@ import math
 import mysql.connector
 import mysql.connector.abstracts
 import uuid
+from common.msgTypes import MessageTypes
+import time
 
 import Interface
 
@@ -149,6 +151,11 @@ def accueil():
 def objects():
     return render_template('objects.html')
 
+
+@app.route('/connectivityCheck', methods=['GET'])
+def connCheck():
+    return jsonify(time.time()), 200
+
 @app.route('/post_data', methods=['POST'])
 def post_data():
     """
@@ -164,24 +171,29 @@ def post_data():
         raw_data= raw_data.removesuffix("\n")
         try:
             data = json.loads(raw_data)
-            print(data)
-            if data['type'] == 1:
+            if data['type'] == MessageTypes.DEVICE_UPDATE:
                 # device status update
                 Q_out.put(data.copy())
                 add_data_to_cache(data)
-            elif data['type'] == 2:
+            elif data['type'] == MessageTypes.OBJECT_REPORT:
                 # object observation
                 for object in data['objects']:
                     oTemp = object.copy()
+                    oTemp["tempId"] = oTemp.pop("id") # move id as temp id
                     oTemp["timestamp"]=data['timestamp']
                     oTemp['seenby']=data['device-id']
-                    # Ajouter les données à la base de données
-                    Interface.save_object_DB(oTemp.copy())
+                    if data['device-id'] in objects_storage:
+                        if oTemp["tempId"] in objects_storage[data['device-id']]:
+                            oTemp["id"] = objects_storage[data['device-id']][oTemp["tempId"]]["id"]
+                    # Ajouter les données à la base de données, donne un Id permanent si pas déjà connu
+                    Interface.save_object_DB(oTemp)
+                    if not "id" in oTemp:
+                        return jsonify({"status": "error", "message": "Unkown/Unregistered device"}), 200
                     # Ajouter les données à la liste d'objets
                     if data['device-id'] in objects_storage:
-                        objects_storage[data['device-id']][oTemp['id']] = oTemp
+                        objects_storage[data['device-id']][oTemp['tempId']] = oTemp
                     else:
-                        objects_storage[data['device-id']] = {oTemp['id']:oTemp}
+                        objects_storage[data['device-id']] = {oTemp['tempId']:oTemp}
             else:
                 logging.error("Not Implemented message type " + str(data['type']))
 
@@ -546,6 +558,7 @@ class DeviceRegistrationForm(FlaskForm):
 class DeviceEditForm(FlaskForm):
     name = StringField('Name *', validators=[DataRequired(), Length(min=2, max=20)])
     description = TextAreaField('Description', validators=[Length(min=0, max=500)])
+    lora = StringField('LoRa EUI', validators=[Optional(), Length(min=16, max=16)])
     password = PasswordField('Curent Password *', validators=[DataRequired(), Length(min=6, max=60)])
     new_password = PasswordField('new Password', validators=[Length(min=6, max=60)], default="")
     confirm_password = PasswordField('Confirm new Password', validators=[EqualTo('new Password')], default="")
@@ -732,6 +745,9 @@ def register_device():
         deviceid = form.deviceid.data
         name = form.name.data
         hashed_password = hash_password(form.password.data)
+        loraDevEui = form.lora_dev_eui.data
+        if loraDevEui == "":
+            loraDevEui=None
 
         # Verifier si l'appareil existe déjà
         
@@ -739,11 +755,18 @@ def register_device():
             flash('Device already exists', 'danger')
             return redirect(url_for('register_device'))
 
+        if loraDevEui != None:
+            loraDevEui = loraDevEui.lower()
+            temp = Interface.__getDeviceIDFromEUI(loraDevEui)
+            if temp != None:
+                flash('Provided LoRa EUI is already assigned to device ' + temp, 'danger')
+                return redirect(url_for('register_device'))
+
         username = check_user_token()
         
         # Ajouter l'appareil a la base
         if username:
-            add_device_DB(deviceid, name, hashed_password, form.lora_dev_eui.data)
+            add_device_DB(deviceid, name, hashed_password, loraDevEui)
 
             # TODO: Ajout a TTN via http ou via l'api
             # appid="stm32lora1"
@@ -833,9 +856,6 @@ def add_device_DB(deviceid, name, hashed_password, loraDevEui):
         None
     """
 
-    if loraDevEui == "":
-        loraDevEui=None
-
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     query = "INSERT INTO Device (`device-id`, name, password, `lora-dev-eui`) VALUES (%s, %s, %s, %s)"
@@ -893,13 +913,20 @@ def deviceList():
         
         devices= [res[i][0] for i in range(len(res))]
         superowner = [res[i][1] for i in range(len(res))]
+
         names = []
+        desc = []
+        lora = []
         for i in devices:
-            query = "SELECT `name` FROM Device WHERE `device-id` = %s"
+            query = "SELECT `name`, `description`, `lora-dev-eui` FROM Device WHERE `device-id` = %s"
             cursor.execute(query, (i,))
-            names += [j[0] for j in cursor.fetchall()]
+            res = cursor.fetchall()
+            names += [j[0] for j in res]
+            desc += [j[1] for j in res]
+            lora += [j[2] for j in res]
+
         devices = [i for i in devices]
-        return render_template('deviceList.html', username=username, devices=devices, names = names, superowner=superowner)
+        return render_template('deviceList.html', username=username, devices=devices, names = names, superowner=superowner, description=desc, lora=lora)
     else:
         flash('User not logged in', 'danger')
         return redirect(url_for('login'))
@@ -924,7 +951,7 @@ def edit_device(deviceid):
         
         db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
         cursor = db.cursor()
-        query = "SELECT name, description FROM Device WHERE `device-id` = %s"
+        query = "SELECT name, description, `lora-dev-eui` FROM Device WHERE `device-id` = %s"
         cursor.execute(query,(deviceid,))
         res = cursor.fetchall()
         
@@ -936,12 +963,18 @@ def edit_device(deviceid):
                 return redirect(url_for('edit_device', deviceid=deviceid))
             new_password = hash_password(form.new_password.data)
             description = form.description.data
-            
+            lora = form.lora.data
+
             match check_device_DB(deviceid,password):
                 case 1:
                     if check_superowner(deviceid,username):
-                        __editDevice(deviceid,name,new_password,description)
-                        return redirect(url_for('deviceList'))
+                        check = Interface.__getDeviceIDFromEUI(lora) 
+                        if check != None and check != deviceid:
+                            flash('The provided LoRa EUI is already assigned', 'danger')
+                            return redirect(url_for('edit_device'))        
+                        else:
+                            __editDevice(deviceid,name,new_password,description,lora)
+                            return redirect(url_for('deviceList'))
                     else:
                         flash('You are not the super user of this device', 'danger')
                         return redirect(url_for('deviceList'))
@@ -958,13 +991,14 @@ def edit_device(deviceid):
                 curent_description=res[0][1]
                 form.name.data = curent_name
                 form.description.data = curent_description
+                form.lora.data = res[0][2]
             return render_template("edit_device.html", device=deviceid, form=form)
     
     else :
         flash('User not logged in', 'danger')
         return redirect(url_for('login'))
 
-def __editDevice(deviceid,name,password,description):
+def __editDevice(deviceid,name,password,description,lora):
     """
     Edit the device and its association with the user.
 
@@ -985,6 +1019,7 @@ def __editDevice(deviceid,name,password,description):
         data['password']= password.decode("utf-8")
 
     data['description'] = description
+    data['lora-dev-eui'] = lora
     fields = ""
     values=[]
     for d in data:
@@ -1113,13 +1148,13 @@ def __getDeviceLatestLocation(deviceid):
         raise NoLocationDataException
     return device_location
 
-def __getNearbyObjects(deviceid, seuil=100):
+def __getNearbyObjects(deviceid, seuil):
     """
-        Get the list of all objects detected other devices in the specified range.
+        Get the list of all objects detected **by other devices** in the specified range.
     """
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    
+    print("getNearbyObjects", seuil, "called")
     try:
         latitude, longitude = __getDeviceLatestLocation(deviceid)
 
@@ -1137,21 +1172,25 @@ def __getNearbyObjects(deviceid, seuil=100):
         # recuperer les objets vus/détectés par ces appareils
         objects = {}
         distances = {}
-        for nlist in neighbours:
-            neighbour = nlist[0]
+        for neighbour in neighbours:
             if neighbour in objects_storage:
-                distance = calculate_distance(latitude, longitude, objects_storage[neighbour][0]['latitude'], objects_storage[neighbour][0]['longitude'])
-                objects[neighbour] = objects_storage[neighbour]
-                distances[neighbour] = distance
+                temp = objects_storage[neighbour]
+                objects[neighbour] = temp
+                distances[neighbour] = {}
+                for (objId, objData) in temp.items():
+                    distance = calculate_distance(latitude, longitude, objData['latitude'], objData['longitude'])
+                    distances[neighbour][objId] = distance
+            else:
+                print("no objects close enough for neighbour", neighbour)
 
         return objects, distances
     
     except NoLocationDataException:
         return {}, {}
 
-@app.route('/objets_proches/<deviceid>', methods=['GET']) 
+@app.route('/nearby_objects/<deviceid>', methods=['GET']) 
 @auth.login_required
-def objets_proches(deviceid):
+def nearby_objects(deviceid):
     """
     Retrieve nearby objects based on the given device ID.
 
@@ -1162,9 +1201,17 @@ def objets_proches(deviceid):
         A rendered HTML template with the nearby objects.
 
     """
-    size = request.args.get("size", 1) 
+    defSearchSize = 100
+
+    size = request.args.get("size", defSearchSize) 
+    try:
+        size = float(size)
+    except ValueError:
+        size = defSearchSize
+        print("request contained invalid size parameter, using default")
+    
     data, distances = __getNearbyObjects(deviceid, size)
-    return render_template('objets_proches.html', data=data, distances=distances)
+    return render_template('nearby_objects.html', data=data, distances=distances, size=size)
 
 
 """==============================================================="""
@@ -1504,8 +1551,8 @@ def apiNeighbourList(deviceid):
     
     return jsonify(neighbours)
 
-@app.route('/api/objets_proches/<deviceid>', methods=['GET'])
-def apiObjets_proches(deviceid):
+@app.route('/api/nearby_objects/<deviceid>', methods=['GET'])
+def apinearby_objects(deviceid):
     """
     Retrieve nearby objects based on the given device ID.
     

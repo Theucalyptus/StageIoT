@@ -7,72 +7,144 @@ from buffer import Buffer
 import network
 import sensors
 from config import config
+import signal
 
 from spatial_object_perso import Camera
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# networking queues and buffers
+q_netMain_out, q_netMain_in = Queue(), Buffer()
+q_netAlt_out, q_netAlt_in = Queue(), Buffer()
 
 ## SENSORS 
+sensorsList = []
 ### Phone
-q_phone_out, q_phone_in = Buffer(), Queue()
-phone = sensors.Phone(q_phone_in, q_phone_out)
+if config.getboolean('sensors', 'phone'):
+    q_phone_out, q_phone_in = Buffer(), Queue()
+    phone = sensors.Phone(q_phone_in, q_phone_out)
+    sensorsList.append(phone)
+    phone.run()
 
 
 ### Can Bus
-q_can_out = Buffer()
-canbus = sensors.CANBus(q_can_out)
-
-sensorsList = [phone, canbus]
-
-## NETWORK
-q_net_out, q_net_in = Queue(), Buffer()
-### UART (LoRa)
-# uart_service = network.UartService(q_net_in, q_net_out)
-# uart_service.run()
-### HTTP (WiFi, Ethernet, LTE/5G)
-http_service = network.HTTPService(q_net_in, q_net_out)
-http_service.run()
-
-canbus.run()
-phone.run()
+if config.getboolean('sensors', 'canbus'):
+    q_can_out = Buffer()
+    canbus = sensors.CANBus(q_can_out)
+    sensorsList.append(canbus)
+    canbus.run()
 
 ### Object Detection
-cam = Camera()
-t = threading.Thread(target=cam.ObjectDetection, args=(q_net_in,))
-t.start()
+cam = None
+if config.getboolean('sensors', 'camera'):
+    cam = Camera()
+    cam.run(q_netMain_in)
 
+
+
+## NETWORK
+MAIN_NET = None
+ALT_NET = None
+def __enableNetInterface(interface, q_in, q_out):
+    if interface != '':
+        if interface == "uart":
+            ### UART (LoRa)
+            uart_service = network.UartService(q_in, q_out)
+            uart_service.run()
+            return uart_service
+        elif interface == "http":
+            ### HTTP (WiFi, Ethernet, LTE/5G)
+            http_service = network.HTTPService(q_in, q_out)
+            http_service.run()
+            return http_service
+        else:
+            print("config error: invalide network interface:", interface)
+            exit(1)
+    else:
+        return None
+
+main = config.get('network', 'main_interface')
+alternative = config.get('network', 'alt_interface')
+MAIN_NET = __enableNetInterface(main, q_netMain_in, q_netMain_out)
+ALT_NET = __enableNetInterface(alternative, q_netAlt_in, q_netAlt_out)
 
 message = {'device-id':config.get('general', 'device_id'), 'type':1}
 
+
+exit = False
+
 def __sendWorker():
-    waitTime = float(config.get('network', 'time_between_send'))
-    time.sleep(waitTime)
-    lastSent = {}
-    # only send a new status update if latest sensor data changed (except timestamp)
-    if lastSent != message:
-        lastSent = message.copy()
-        q_net_in.put(json.dumps(lastSent) + "\n")
-        
-threading.Thread(target=__sendWorker).start()
+    global exit
+    while not exit:
+        waitTime = float(config.get('network', 'time_between_send'))
+        time.sleep(waitTime)
+        lastSent = {}
+        # only send a new status update if latest sensor data changed (except timestamp)
+        if lastSent != message:
+            message['timestamp'] = time.time()
+            lastSent = message.copy()
+            if MAIN_NET.isUp:
+                q_netMain_in.put(lastSent)
+            elif ALT_NET != None and ALT_NET.isUp:
+                q_netAlt_in.put(lastSent)
+            else:
+                logger.info("all networks are down. the data is still logged localy.")
+
+
+t = threading.Thread(target=__sendWorker)
+t.start()
+
+def stop(*args):
+    logger.info("Graceful exit. Stopping all workers and saving data (can take a few seconds)")
+    global exit
+    exit = True
+    for sensor in sensorsList:
+        logger.debug("waiting for sensor " + sensor.name + " to stop...")
+        sensor.stop()
+    
+    if cam:
+        logger.debug("Waiting for camera worker to stop...")
+        cam.stop()
+    
+    logger.debug("Waiting for main network to stop ...")
+    MAIN_NET.stop()
+    if ALT_NET:
+        logger.debug("Waiting for alt network to stop...")
+        ALT_NET.stop()
+    logger.debug("Waiting for send worker to stop...")
+    t.join()
+
+signal.signal(signal.SIGINT, stop)
+signal.signal(signal.SIGTERM, stop)
 
 ## Polling all sensors and update the dict containing all the information
-while True:
-    message['timestamp'] = time.time()
-    coordChanged=False
-    for sensor in sensorsList:
-        try:
-            sample = sensor.getLatestSample()
-            for key, value in sample.items():
-                if key != "timestamp":
-                    if key not in message or value != message[key]:
-                        message[key] = value
-                    if key in ['latitude', 'longitude', 'azimuth']:
-                        coordChanged = True
-        except sensors.NoSampleAvailable:
-            pass
-    
-    if coordChanged:
-        cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
-
+def run():
+    global exit
+    while not exit:
+        start = time.perf_counter_ns()
+        coordChanged=False
+        for sensor in sensorsList:
+            try:
+                sample = sensor.getLatestSample()
+                for key, value in sample.items():
+                    if key != "timestamp":
+                        if key not in message or value != message[key]:
+                            message[key] = value
+                        if key in ['latitude', 'longitude', 'azimuth']:
+                            coordChanged = True
+            except sensors.NoSampleAvailable:
+                pass
+        
+        if coordChanged and cam:
+            cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
+        
+        d = time.perf_counter_ns() - start
+        if d < 1000000:
+            time.sleep(d/1000000000)
+        
+if __name__=="__main__":
+    try:
+        run()
+    except KeyboardInterrupt:
+        stop()

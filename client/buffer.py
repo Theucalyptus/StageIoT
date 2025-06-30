@@ -17,7 +17,7 @@ class Buffer:
 
     def put(self, item):
         if self.queue.full():
-            logging.info("writing in non-empty buffer, network may be too slow")
+            logging.info("writing in non-empty buffer, reader may be too slow")
             try:
                 self.queue.get_nowait()
             except queue.Empty:

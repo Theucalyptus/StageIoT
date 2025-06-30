@@ -2,9 +2,14 @@ certifi==2025.6.15
 charset-normalizer==3.4.2
 depthai==2.30.0.0
 idna==3.10
+msgpack==1.1.1
 numpy==2.3.0
 opencv-python==4.11.0.86
+packaging==25.0
 pyserial==3.5
+python-can==4.5.0
 requests==2.32.4
+typing_extensions==4.14.0
 urllib3==2.4.0
 websockets==15.0.1
+wrapt==1.17.2

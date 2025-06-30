@@ -1,11 +1,5 @@
 #!/usr/bin/bash
 
-
-echo "THIS SCRIPT ONLY LAUNCHES THE CLIENT. A MYSQL SERVER MUST BE AVAILABLE"
-echo "One option is to use the mysql docker container provided with the server"
-
-
-
 cd client || exit
 
 if [[ "$VIRTUAL_ENV" != "" ]]
@@ -42,7 +36,6 @@ if ! nmcli -g GENERAL.STATE c s Hotspot | grep -q -E '\bactiv'; then
 else
   echo -e "Wifi hotspot is already on. skipping"
 fi
-
 
 # launching the main program
 python main.py

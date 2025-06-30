@@ -2,9 +2,11 @@ FROM python:3.11
 
 WORKDIR /usr/src/app
 
-COPY ../../requirements.txt ./
+COPY ./serveur/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY ./serveur/. .
+RUN rm common
+COPY ../common ./common
 
-CMD [ "python", "-u", "./main.py" ]
+CMD [ "python", "-u", "main.py" ]

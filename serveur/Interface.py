@@ -6,6 +6,8 @@ import time
 import utils
 import datetime
 import requests
+from common.msgTypes import MessageTypes
+from common import lora
 
 db : mysql.connector.MySQLConnection
 db_cursor : mysql.connector.abstracts.MySQLCursorAbstract
@@ -29,6 +31,21 @@ def __checkColumnExists(tablename, column):
     c.execute(query, (column,))
     r = c.fetchall()
     return len(r)>= 1
+
+def __getDeviceIDFromEUI(lora_eui: str):
+    if lora_eui == "" or lora_eui == None:
+        return None
+    
+    global db, db_cursor
+    c = db_cursor
+    query = "SELECT `device-id` FROM Device WHERE `lora-dev-eui` = %s;"
+    c.execute(query, (lora_eui.lower(),))
+    res = None
+    try:
+        res = c.fetchone()[0]
+    except (IndexError, TypeError):
+        pass
+    return res
 
 def save_sample_DB(data):
     global db, db_cursor
@@ -66,13 +83,61 @@ def save_object_DB(object):
     global db, db_cursor
     c = db_cursor
     table = "Objects"
-    object['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
-    query = "INSERT INTO " + table +" (timestamp, seenby, latitude, longitude, label) VALUES (%(timestamp)s, %(seenby)s, %(latitude)s, %(longitude)s, %(label)s)"
-    c.execute(query, (object))
+    temp = object.copy()
+    temp['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
+    
+
+    device = object["seenby"]
+    query = "SELECT * FROM Device WHERE `device-id`=%s"
+    c.execute(query,(device,))
+    res = c.fetchall()
+    if len(res)==0:
+        print("object seen by unkown device, ignoring")
+        return
+
+
+    # if object already has a permanent id, it should be in the DB and we have to update its record
+    if "id" in object:
+        print("Update existing object record")
+        fields = ""
+        values=[]
+        id = temp.pop('id') # remove id
+        for d in temp:
+            fields+="`"+ d+"`=%s ,"
+            values.append(temp[d])
+        fields=fields[:-2]
+        values.append(id)
+        query = "UPDATE " + table + " SET " + fields + " WHERE id=%s"
+        c.execute(query, (values))
+
+    else:
+        # the object is new, so assign it a permanent id and create a new record in the table
+        print("inserting new object in DB")
+        query = "INSERT INTO " + table +" (timestamp, seenby, latitude, longitude, label, tempId) VALUES (%(timestamp)s, %(seenby)s, %(latitude)s, %(longitude)s, %(label)s, %(tempId)s)"
+        c.execute(query, (temp))
+        # get the record for the newly added record
+        query = "SELECT id FROM " + table + " WHERE seenby=%s AND tempId=%s ORDER BY timestamp DESC LIMIT 1;"
+        c.execute(query, ([temp['seenby'], temp['tempId']]))
+        res = c.fetchone() # should only ever match one object
+        object["id"] = res[0]
+
 
 
 def data_LoRa_handler(message,device):
-    requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=message)
+    deviceid = __getDeviceIDFromEUI(device)
+    if deviceid != None:
+        type = lora.get_message_type(message)
+        if type == MessageTypes.DEVICE_UPDATE:
+            message = lora.lora_to_sample(message)
+        elif type == MessageTypes.OBJECT_REPORT:
+            message = lora.lora_to_objects(message)
+        else:
+            print("Unkown message type")
+            raise NotImplementedError
+        message['device-id'] = deviceid
+        requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
+    else:
+        print("unkown lora EUI ({device}), ignoring message")
 
 def LoRa_msg_handler(msg):
     try :
@@ -85,14 +150,8 @@ def LoRa_msg_handler(msg):
             case "join":
                 print(device_ttn_name, "("+device+")", "join msg received")
             case "up":
-                #print("uplink message received")
                 data = message['uplink_message']['frm_payload']
                 data = base64.b64decode(data.encode())
-                try :
-                    data = data.decode()
-                except UnicodeDecodeError :
-                    data = data.hex()
-
                 data_LoRa_handler(data, device)
     except (RuntimeError,KeyError) as e :
         print("ERROR", msg.playload, e)
@@ -123,12 +182,15 @@ def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
     db_cursor.execute(db_query)
     
     while True:
-        while Q_Lora.empty() and Q_web.empty():
-            time.sleep(0.002)
-        if not Q_Lora.empty():
-            message = Q_Lora.get()
-            LoRa_msg_handler(message)
-        if not Q_web.empty():
-            message = Q_web.get()
-            Web_msg_handler(message)
+        try:
+            while Q_Lora.empty() and Q_web.empty():
+                time.sleep(0.002)
+            if not Q_Lora.empty():
+                message = Q_Lora.get()
+                LoRa_msg_handler(message)
+            if not Q_web.empty():
+                message = Q_web.get()
+                Web_msg_handler(message)
+        except Exception as e:
+            print("Iterface: ERROR:", e)
 

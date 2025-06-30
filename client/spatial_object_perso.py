@@ -9,6 +9,8 @@ import sensors
 
 import cv2, depthai as dai, numpy as np    # ← ton module
 
+DEBUG_UI=True
+
 # ---------- 1. Constantes tracking ----------------------------------------
 PIX_MATCH_RADIUS   = 60    # px  – distance max centre‑à‑centre pour dire « même objet »
 PIX_SEND_THRESHOLD = 40    # px  – déplacement min avant de ré‑émettre
@@ -52,7 +54,7 @@ def get_latitude_longitude(lat, long, azimuthDeg, z, x):
 
     return lat+blat, long+blong
 
-def construire_json(tracked_objs, lat, long, azimuth):
+def construire_msg(tracked_objs, lat, long, azimuth):
     data = {
         "device-id": "jetson1",
         "type": 2,
@@ -71,7 +73,7 @@ def construire_json(tracked_objs, lat, long, azimuth):
             "id": obj.id
         })
 
-    return json.dumps(data)
+    return data
 
 
 
@@ -80,6 +82,15 @@ class Camera:
 
     def __init__(self):
         self.setCoordinates(0, 0, 0)
+        self.stopVar = False
+    
+    def stop(self):
+        self.stopVar = True
+        self.thread.join()
+
+    def run(self, q_netMain_in):
+        self.thread = threading.Thread(target=self.ObjectDetection, args=(q_netMain_in,))
+        self.thread.start()
 
     def setCoordinates(self, lat, long, azimuth):
         self.latitude = lat
@@ -122,7 +133,7 @@ class Camera:
 
             t_last_send = time.time()
 
-            while True:
+            while not self.stopVar:
                 rgb_msg = q_rgb.tryGet()
                 det_msg = q_det.tryGet()
                 if rgb_msg is None or det_msg is None:
@@ -162,12 +173,13 @@ class Camera:
                         #print(f"[NOUVEAU] Objet ID {next_id} ({label}) détecté à ({cx}, {cy})")
                         next_id += 1
 
-                    # dessin debug
-                    x1,y1 = int(d.xmin*W), int(d.ymin*H)
-                    x2,y2 = int(d.xmax*W), int(d.ymax*H)
-                    cv2.rectangle(frame,(x1,y1),(x2,y2),(255,0,0),1)
-                    cv2.putText(frame,f"ID {trk.id} d{trk.xyz[2]}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
-                    cv2.putText(frame,label,(x1,y1+14),cv2.FONT_HERSHEY_SIMPLEX,0.5,255)
+                    if DEBUG_UI:
+                        # dessin debug
+                        x1,y1 = int(d.xmin*W), int(d.ymin*H)
+                        x2,y2 = int(d.xmax*W), int(d.ymax*H)
+                        cv2.rectangle(frame,(x1,y1),(x2,y2),(255,0,0),1)
+                        cv2.putText(frame,f"ID {trk.id} d{trk.xyz[2]}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
+                        cv2.putText(frame,label,(x1,y1+14),cv2.FONT_HERSHEY_SIMPLEX,0.5,255)
 
                 # --------- purge des perdus --------------------------------
                 for oid in list(tracked):
@@ -183,14 +195,16 @@ class Camera:
                             #payload += f"{tr.id:<3},{int(x):<6},{int(y):<6},{int(z):<6},{tr.label:<10};"
                             tr.last_sent_cxy = (tr.cx, tr.cy)
                     
-                    obj_data_msg = construire_json(tracked.values(), self.latitude, self.longitude, self.azimuth)
-                    print("envoi de données objets", obj_data_msg)
-                    Q_out.put(obj_data_msg)
-                    t_last_send = now
+                    if len(tracked.values()) > 0:
+                        obj_data_msg = construire_msg(tracked.values(), self.latitude, self.longitude, self.azimuth)
+                        print("envoi de données objets", obj_data_msg)
+                        Q_out.put(obj_data_msg)
+                        t_last_send = now
 
-                cv2.imshow("preview", frame)
-                if cv2.waitKey(1) == ord('q'):
-                  break
+                if DEBUG_UI:
+                    cv2.imshow("preview", frame)
+                    if cv2.waitKey(1) == ord('q'):
+                        break
 
 # --------------- main thread -----------------------------------------------
 if __name__ == "__main__":
