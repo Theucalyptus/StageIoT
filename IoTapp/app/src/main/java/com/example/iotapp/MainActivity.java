@@ -47,6 +47,7 @@ import android.annotation.SuppressLint;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
 import com.google.android.gms.tasks.OnSuccessListener;
 
 import org.json.JSONObject;
@@ -56,15 +57,15 @@ import com.google.android.gms.location.LocationResult;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.ZoneOffset;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class MainActivity extends AppCompatActivity {
 
     Button btnConnectWifi;
     TextView tSocket;
     TextView sData;
-
-    private boolean hasStartedAfterWifi = false;
-
 
     private boolean isSocketConnected = false;
 
@@ -84,10 +85,22 @@ public class MainActivity extends AppCompatActivity {
     private float lastRoll = 0f;
     private float lastOrientation=0f;
 
+    private double lastLat=0.0;
+    private double lastLon=0.0;
+    private double lastAlt=0.0;
+    private float lastSpd= 0.0F;
+
+    private SenderThread sender;
+
+    private Lock lock = new ReentrantLock();
+    private Condition dataUpdate = lock.newCondition();
+
     /*
-        * Listener to collect the pitch and roll data of the phone,, useful for the pitch and roll of the vehicule
+        * Listener to collect the pitch and roll data of the phone, useful for the pitch and roll of the vehicule
     */
     private final SensorEventListener sensorListener = new SensorEventListener() {
+        private long last = System.currentTimeMillis();
+
         @Override
         public void onSensorChanged(SensorEvent event) {
             if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
@@ -105,6 +118,15 @@ public class MainActivity extends AppCompatActivity {
                 lastOrientation= (float) Math.toDegrees(orientation[0]);
                 lastPitch = (float) Math.toDegrees(orientation[1]); // avant/arrière
                 lastRoll = (float) Math.toDegrees(orientation[2]);  // gauche/droite
+                long now = System.currentTimeMillis();
+                if ((now - last) > 50) {
+                    last = now;
+                    Log.d("sensor", "update");
+                    lock.lock();
+                    dataUpdate.signal();
+                    lock.unlock();
+                }
+
             }
         }
 
@@ -117,21 +139,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
-
         setContentView(R.layout.activity_main);
 
 
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-
         Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-
-
-
         sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_UI);
         sensorManager.registerListener(sensorListener, magnetometer, SensorManager.SENSOR_DELAY_UI);
+
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -139,22 +155,23 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
         btnConnectWifi = findViewById(R.id.wifi);
         tSocket= findViewById(R.id.socketConnected);
         tSocket.setText(R.string.no_co_sock);
         sData= findViewById(R.id.sendData);
 
-        //la localisation
-
-        checkWifiConnection();
-
+        sender = new SenderThread();
+        sender.start();
     }
 
 
     /*
         *Check if yhe phone is connected to the access point
      */
-    private void checkWifiConnection() {
+    private boolean checkWifiConnection() {
         ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo wifiInfo = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
 
@@ -163,17 +180,9 @@ public class MainActivity extends AppCompatActivity {
         if (isConnected) {
             btnConnectWifi.setEnabled(false);
             Toast.makeText(this, "Connecté au Wi-Fi", Toast.LENGTH_SHORT).show();
-            if(!hasStartedAfterWifi){
-                connectWebSocket();   // Connexion au démarrage
-                startLocationUpdates();
-                hasStartedAfterWifi=true;
-            }
-
-
-
+            return true;
 
         } else {
-            hasStartedAfterWifi=false;
             btnConnectWifi.setEnabled(true);
             sData.setText("");
             tSocket.setText(R.string.no_co_sock);
@@ -183,6 +192,8 @@ public class MainActivity extends AppCompatActivity {
                 Intent intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
                 startActivity(intent);
             });
+
+            return false;
         }
     }
 
@@ -191,6 +202,8 @@ public class MainActivity extends AppCompatActivity {
         * Connect to the plateform using websocket API, useful for sending all the collected data
     */
     private void connectWebSocket() {
+        if (isSocketConnected) return;
+
         client = new OkHttpClient();
 
         Request request = new Request.Builder()
@@ -202,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
             public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
                 Log.d("WEBSOCKET", "Connecté !");
                 isSocketConnected = true;
-                tSocket.setText(R.string.co_sock);
+                //tSocket.setText(R.string.co_sock);
             }
 
             @Override
@@ -221,46 +234,68 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
                 webSocket.close(1000, null);
+                isSocketConnected = false;
                 Log.d("WEBSOCKET", "Fermeture : " + reason);
             }
         });
     }
 
+    class SenderThread extends Thread {
+        private boolean exit = false;
+        SenderThread() {
+        }
 
-    /*
-        * Sending the data collected each second
-    */
-    private void sendPosition(double lat, double lon, float speed,double alt) {
-        if (isSocketConnected && webSocket != null) {
-            try {
+        public void run() {
+            while (!this.exit) {
+                lock.lock();
+                try {
+                    dataUpdate.await();
+                    if (isSocketConnected && webSocket != null) {
+                        try {
 
-                ZonedDateTime nowUtc = null;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    nowUtc = ZonedDateTime.now(ZoneOffset.UTC);
+                            ZonedDateTime nowUtc = null;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                nowUtc = ZonedDateTime.now(ZoneOffset.UTC);
+                            }
+                            String isoTimestamp = null;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                isoTimestamp = nowUtc.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                            }
+
+                            JSONObject json = new JSONObject();
+                            json.put("timestamp", isoTimestamp);
+                            json.put("latitude", lastLat);
+                            json.put("longitude", lastLon);
+                            json.put("altitude", lastAlt);
+                            json.put("speed", lastSpd);
+                            json.put("pitch", lastPitch);
+                            json.put("roll", lastRoll);
+                            json.put("azimuth", lastOrientation);
+
+
+                            String message = json.toString();
+                            Log.d("WEBSOCKET", String.valueOf(webSocket.queueSize()));
+                            boolean res = webSocket.send(message);
+                            //boolean res = true;
+                            if (!res) {
+                                Log.d("WEBSOCKET", "input buffer overflow, closing the connection !!");
+                            }
+                            sData.setText(R.string.sendD);
+                            //Log.d("WEBSOCKET", "JSON envoyé : " + message);
+                        } catch (Exception e) {
+                            Log.e("WEBSOCKET", "Erreur JSON : " + e.getMessage());
+                        }
+
+                    }
+                } catch (InterruptedException e) {
+
                 }
-                String isoTimestamp = null;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    isoTimestamp = nowUtc.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-                }
-
-                JSONObject json = new JSONObject();
-                json.put("timestamp", isoTimestamp);
-                json.put("latitude", lat);
-                json.put("longitude", lon);
-                json.put("altitude",alt);
-                json.put("speed", speed);
-                json.put("pitch", lastPitch);
-                json.put("roll", lastRoll);
-                json.put("azimuth", lastOrientation);
-
-
-                String message = json.toString();
-                webSocket.send(message);
-                sData.setText(R.string.sendD);
-                Log.d("WEBSOCKET", "JSON envoyé : " + message);
-            } catch (Exception e) {
-                Log.e("WEBSOCKET", "Erreur JSON : " + e.getMessage());
+                lock.unlock();
             }
+        }
+
+        public void exit() {
+            this.exit = true;
         }
     }
 
@@ -270,26 +305,29 @@ public class MainActivity extends AppCompatActivity {
     private void startLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+            Log.i("GPS", "missing permissions");
             return;
         }
 
+        Log.d("GPS", "launching");
         LocationRequest locationRequest = new LocationRequest.Builder(
-                LocationRequest.PRIORITY_HIGH_ACCURACY,
-                1000L // Demande toutes les 1s
-        ).setMinUpdateIntervalMillis(500L)
-                .build();
+                Priority.PRIORITY_HIGH_ACCURACY,
+                1000L // Demande toutes les 5s
+        ).setMaxUpdateDelayMillis(1000L).setMinUpdateDistanceMeters(0.0f).build();
 
         locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(@NonNull LocationResult locationResult) {
-                if (locationResult == null) return;
-
+                //Log.d("GPS", "update callback");
                 for (Location location : locationResult.getLocations()) {
-                    double lat = location.getLatitude();
-                    double lon = location.getLongitude();
-                    float speed = location.getSpeed(); // m/s
-                    double altitude = location.getAltitude();
-                    sendPosition(lat, lon, speed, altitude); // 🔁 Envoie dès réception
+                    lastLat = location.getLatitude();
+                    lastLon = location.getLongitude();
+                    lastSpd = location.getSpeed(); // m/s
+                    lastAlt = location.getAltitude();
+                    Log.d("GPS UPDATE", lastLat + " | " + lastLon);
+                    lock.lock();
+                    dataUpdate.signal();
+                    lock.unlock();
                 }
             }
         };
@@ -314,10 +352,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        Log.d("main", "onResume called");
+        startLocationUpdates();
 
-        checkWifiConnection();
-
-        if(!isSocketConnected){
+        if(checkWifiConnection()) {
             connectWebSocket();
         }
     }

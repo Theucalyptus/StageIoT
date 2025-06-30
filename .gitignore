@@ -15,3 +15,4 @@ client/logs/
 */venv/
 */__pycache__/
 .venv/
+
