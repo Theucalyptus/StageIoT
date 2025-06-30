@@ -14,4 +14,4 @@ client/logs/
 # Python
 */venv/
 */__pycache__/
-*/.venv/
+*.venv/
