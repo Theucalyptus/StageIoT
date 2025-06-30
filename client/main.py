@@ -80,6 +80,7 @@ def __sendWorker():
         waitTime = float(config.get('network', 'time_between_send'))
         time.sleep(waitTime)
         lastSent = {}
+        
         # only send a new status update if latest sensor data changed (except timestamp)
         if lastSent != message:
             message['timestamp'] = time.time()
@@ -90,6 +91,12 @@ def __sendWorker():
                 q_netAlt_in.put(lastSent)
             else:
                 logger.info("all networks are down. the data is still logged localy.")
+
+        if MAIN_NET.isUp:
+            near_objects = MAIN_NET.getNearbyObjects()
+            if near_objects is not {}:
+                serialized_objects = json.dumps(near_objects)
+                q_phone_in.put(serialized_objects)
 
 
 t = threading.Thread(target=__sendWorker)

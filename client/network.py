@@ -80,6 +80,7 @@ class HTTPService:
     baseUrl = "http://"+host+":"+port
     pushUrl = baseUrl+"/post_data"
     connCheckUrl = baseUrl + "/connectivityCheck"
+    getObjURL= baseUrl + "/api/nearby_objects/" + config.get('general', 'device_id')
 
     timeout = config.getint('network.http', 'timeout')
 
@@ -126,6 +127,25 @@ class HTTPService:
             self.isUp = False # connection seems to be down
             self.q_in.put(msg) # re-adding the message to the queue
             logger.warning("http send failed. Network may be down")
+
+    def getNearbyObjects(self):
+        if not self.isUp:
+            logger.warning("http service is down. Cannot receive data")
+            return None
+        
+        try:
+            r = requests.get(HTTPService.getObjURL, timeout=HTTPService.timeout)
+            if r.status_code == 200:
+                data = r.json()
+                logger.info("http received " + str(data))
+                data = json.loads(data)  # ensure we have a dict
+                return data
+            elif r.status_code == 204 or r.status_code == 404:
+                return {}
+            else:
+                logger.warning("http received unexpected status code " + str(r.status_code))
+        except ConnectionError as e:
+            logger.error("http receive failed: " + str(e))
 
     def stop(self):
         self.stopVar = True

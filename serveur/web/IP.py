@@ -1562,57 +1562,24 @@ def apinearby_objects(deviceid):
         deviceid (str): The device ID.
 
     Returns:
-        A rendered HTML template with the nearby objects.
+        list: A list of nearby objects.
 
     """
-    key = request.args.get('key')
+    
+
+    key= request.args.get('key')
     username = get_user_from_api_key(key)
     if username is None:
         return jsonify({"error": "Invalid API key"}), 401
-
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-
-    size = request.args.get('size', 0.0007)
-    neighbours=[]
-
-
-    # get the latest known location of the device
-    query = """
-        SELECT latitude, longitude, angle, azimuth
-        FROM Data
-        WHERE source = %s
-        ORDER BY timestamp DESC
-        LIMIT 1;
-    """
-    cursor.execute(query, (deviceid,))
-    device_location = cursor.fetchone()
-    if (device_location==None):
-        return jsonify({"error":"No device with this eui has been recorded"}), 400
     
-    latitude, longitude, *_ = device_location
-
-    query = """
-        SELECT Distinct Device.`device-id`
-        FROM Data
-        JOIN Device ON Data.source = Device.`device-id`
-        JOIN DeviceOwners ON Device.`device-id` = DeviceOwners.device
-        AND POWER(Data.latitude - %s, 2) + POWER(Data.longitude - %s, 2) <= POWER(%s, 2)
-        AND Data.timestamp > %s;
-    """
-    cursor.execute(query, (latitude, longitude, size, datetime.now() - timedelta(seconds=30)))
-    neighbours = cursor.fetchall()
+    if deviceid not in __queryAllDeviceIDs():
+        return jsonify({"error": "Device not found"}), 404
+       
 
     # recuperer les objets vus par ces appareils
-    objects = {}
+    objects,distances = __getNearbyObjects(deviceid, 100) # Antoine: 100 is the default search size, can be changed by the user in the request
 
-    #distances = {}
-
-    for neighbour in neighbours:
-        n = neighbour[0]
-        if n in objects_storage:            
-            objects[n] = objects_storage[n]
-    
+    #distances = {} 
     return jsonify(objects),200
 
 def __queryAllDeviceIDs():
