@@ -1,3 +1,4 @@
+[retour à l'arborescence de la doc](../README.md)
 # Documentation de l'API
 
 Ce document décrit l'utilisation des différents points de terminaison de l'API.
@@ -91,7 +92,7 @@ response = requests.get(url, params=params)
     "longitude": 1.45469,
     "luminosity": 752.598,
     "presence": null,
-    "pression": null,
+    "pressure": null,
     "source": "70b3d57ed0068a6f",
     "temperature": null,
     "timestamp": "Lun, 08 Jul 2024 14:39:34 GMT",
@@ -214,3 +215,4 @@ else:
     print("Erreur:", response.status_code)
     print("Message:", response.json().get('message', 'Aucun message fourni'))
 ```
+[retour à l'arborescence de la doc](../README.md)

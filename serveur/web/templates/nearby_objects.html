@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Objets Proches</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/styles.css') }}">
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/deviceList.css') }}">
+    <style>
+        ul {
+            list-style-type: none; 
+            padding: 0;
+            margin: 0;
+        }
+
+        ul li {
+            padding: 8px 16px; 
+            margin-bottom: 4px; 
+            background-color: #79797917; 
+            border-radius: 4px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            transition: background-color 0.3s ease; 
+        }
+
+        ul li:hover {
+            background-color: #2c2c2c17; 
+        }
+
+        ul li:not(:last-child) {
+            margin-bottom: 8px; 
+        }
+
+        ul li a {
+            text-decoration: none;
+            color: #333; 
+            display: block;
+        }
+
+        ul li a:hover {
+            color: #000; 
+        }
+
+        #objectsContainer {
+            padding: 8px 16px;
+            margin-bottom: 4px;
+            background-color: #79797917;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="light-theme">
+    <div>
+        <button id="themeToggle" class="btn btn-secondary ">Toggle Dark Mode</button>
+        <button class="btn btn-primary " onclick="window.location.href='/'">Home</button>
+    </div>  
+    <h1>Nearby objects</h1>
+    <p>This page displays the details of all objects/obstacles reported by other devices in a given perimeter.</p>
+    <form method="get">
+        <label for="size">Distance (max):</label>
+        <input type="number" id="size" name="size">
+        <button type="submit">OK</button>
+    </form>
+    
+
+    {% if data %}
+        <ul>
+        {% for device, objects in data.items() %}
+            {% set distance = distances[device] %}
+            <div>
+                <div id="objectsContainer"> <h5>Objects seen by : {{ device }}</h5>
+                    <div id="objectsContainer">
+                        <ul>
+                        {% for objId, obj in objects.items() %}
+                            <li>ID: {{ obj.id }}  Label: {{ obj.label }} Distance : {{ '{0:0.2f}'.format(distance[objId]) }}m</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No objects were found in the given perimeter ({{ size }} meters).</p>
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='index.js') }}"></script>
+</body>
+</html>

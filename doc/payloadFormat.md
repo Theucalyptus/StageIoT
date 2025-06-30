@@ -1,3 +1,4 @@
+[retour à l'arborescence de la doc](../README.md)
 # Format des trammes d'envoi de donnnées LoRa
 
 ## Table des id de trammes
@@ -34,9 +35,9 @@ ce format permet à l'utilisateur de définir sa propre tramme
 | ID  | subId | timestamp | Donnée               | Donnée                | Donnée                | Donnée         | Donnée               |  Donnée              |
 |-----|-------|-----------|----------------------|-----------------------|-----------------------|----------------|----------------------|----------------------|
 |  2  |  non  | oui       | Latitude             | Longitude             | Altitude              | luminosite     | Vitesse Angulaire X  | Vitesse Angulaire Y  |
-|     |       |           | Vitesse Angulaire Z  | Pression              | Accelération X        | Accelération Y | Accelération Z       |                      |
+|     |       |           | Vitesse Angulaire Z  | Pressure              | Accelération X        | Accelération Y | Accelération Z       |                      |
 |     |       |           | Angle                | Azimut                | Distance              | Humidite       | Temperature          |                      |
-|  3  |  non  | non       | X                    | Y                     | Z                     | objetLabel     | ...                  |                      |
+|  3  |  non  | oui       | X                    | Y                     | Z                     | objetLabel     | ...                  |                      |
 
 
 ## Trammes de données Raspi -> esp
@@ -50,9 +51,11 @@ x,y,z,label;x,y,z,label;...;x,y,z,label;
 
 # Format des trammes d'envoi de donnnées Bluetooth
 
-s, timestamp, latitude, longitude, altitude, luminosité, vitesse angulaire X, vitesse angulaire Y, vitesse angulaire Z, pression, accélérationX, accélérationY, accélérationZ, angle, azimut
+s, timestamp, latitude, longitude, altitude, luminosité, vitesse angulaire X, vitesse angulaire Y, vitesse angulaire Z, pressure, accélérationX, accélérationY, accélérationZ, angle, azimut
 o, objet1, objet2, ...
 
-020\n desactivation 4g
-021\n activation 4g
-30 distance\n envoi de la distance
+`020\n` desactivation 4g\
+`021\n` activation 4g\
+`30'distance'\n` envoi de la distance\
+
+[retour à l'arborescence de la doc](../README.md)

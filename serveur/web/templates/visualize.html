@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <title>Data Visualization</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles/styles.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@^3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@^2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@^1"></script>
+    
+    <script src="{{ url_for('static', filename='index.js') }}"></script>
+    <style>
+        
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center">Data Visualization</h1>
+        <button id="themeToggle" class="btn btn-secondary mb-3">Toggle Dark Theme</button>
+        <button id="home" class="btn btn-primary mb-3" onclick="window.location.href='/'">Home</button>
+        <div class="chart">
+            <canvas id="dataChart" ></canvas>
+        </div>
+        <div class="d-inline-flex flex-row">
+            
+            <h6 class="text-center text-nowrap mt-2" style="margin-right: 0.5em;">Device :    </h6>
+            <select id="deviceSelect" class="form-select" onchange="updateDevice(this.value)"></select>
+            <h6 class="text-center text-nowrap mt-2" style="margin-left: 0.5em;margin-right: 0.5em;">Duration :    </h6>
+            <select id="duration" class="form-select" onselect="updateDuration(this.value)" onchange="updateDuration(this.value)">
+                <option value="20">20 seconds</option>
+                <option value="60">1 minute</option>
+                <option value="180">3 minutes</option>
+                <option value="600">10 minutes</option>
+                <option value="1800">30 minutes</option>
+                <option value="3600">1 hour</option>
+                <option value="86400">1 day</option>
+                <option value="604800">1 week</option>
+                <option value="2678400">1 month</option>
+            </select>
+            
+        </div>
+        <div id="dataDisplay" class="mt-4"></div>
+        <div id="fieldsToggle" class="mt-4">
+            <h3>Select Fields to Display:</h3>
+            <button id="selectAll" class="btn btn-primary mb-2">Select All</button>
+            <button id="deselectAll" class="btn btn-warning mb-2">Deselect All</button>
+            <div class="row">
+                <div class="col-md-6">
+                    {% if fields %}
+                        {% for field in fields %}
+                        <div class="form-check checkbox-container">
+                            <input class="form-check-input" type="checkbox" id="{{ field }}" name="fields" value="{{ field }}" checked>
+                            <label class="form-check-label" for="{{ field }}">{{ field }}</label>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        It appears we have no data from this device yet. The field list will be available as soon as the platform receives a status update from the device.
+                    {% endif %}
+            </div>
+        </div>
+    </div>
+    <style>
+    </style>
+    <script>
+        const ctx = document.getElementById('dataChart').getContext('2d');
+        let chart;
+        let eui;
+        let selectedDevice = new URLSearchParams(window.location.search).get('dev');
+        //console.log(selectedDevice)
+        let duration = document.getElementById('duration').value;
+        const _fields = [ {% for f in fields %}
+                            "{{ f }}",
+                         {% endfor %}
+        ];
+        function createChart() {
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    
+                    labels: [],
+                    datasets: _fields.map(field => ({
+                        label: field,
+                        data: [],
+                        borderColor: getRandomColor(),
+                        hidden: !document.getElementById(field).checked,
+                        fill: false
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    animation: false, // Disable animations
+                    scales: {
+                        x: {
+                            type : 'time',
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Value'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    
+        function fetchData() {
+            let updated = 0;
+            fetch("/get_data?" + new URLSearchParams({'dev':selectedDevice}) + "&" + new URLSearchParams({'duration':duration}))
+                .then(response => response.json())
+                .then(data => {
+                    for (i in data) {
+                        if (i == selectedDevice && data[i].length > 0) {   
+                            updateChart(data[i]);
+                            updated = 1;
+                        }
+                    }
+                    if (updated == 0) {
+                        updateChart([]) 
+                    }
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+    
+        function updateChart(data) {
+            const labels = data.map(item => new Date(item.timestamp));
+            chart.data.labels = labels;
+            _fields.forEach((field, index) => {
+                chart.data.datasets[index].data = data.map(item => ({x: new Date(item.timestamp), y: item[field]}));
+                chart.data.datasets[index].hidden = !document.getElementById(field).checked;
+                
+            });
+            chart.update();
+        }
+
+        function updateDuration(dur){
+            duration = dur;
+        }
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+    
+        function updateChartVisibility() {
+            _fields.forEach((field, index) => {
+                chart.data.datasets[index].hidden = !document.getElementById(field).checked;
+            });
+            chart.update();
+        }
+    
+        function selectAllFields() {
+            document.querySelectorAll('input[name="fields"]').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateChartVisibility();
+        }
+    
+        function deselectAllFields() {
+            document.querySelectorAll('input[name="fields"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateChartVisibility();
+        }
+
+        function updateDevice(newDevice)
+        {
+            selectedDevice = newDevice
+            // Simulate an HTTP redirect:
+            window.location.replace("/visualize?dev="+selectedDevice);
+        }
+    
+        // Fetch data initially and then every 0.5 seconds
+        fetchData();
+        const selectElement = document.getElementById("deviceSelect");
+        
+        let euiList = fetch('/getDeviceList')
+        .then(response => {
+            // Vérifier si la requête a réussi
+            if (!response.ok) {
+            throw new Error('Network response was not ok');
+            }
+            return response.json(); // Convertir la réponse en JSON
+        })
+        .then(data => {
+            // Utiliser les données pour remplir la liste déroulante
+            selectElement.innerHTML = ''; // Vider les options existantes
+            data.forEach(devices => {
+                const option = document.createElement("option");
+                option.value = devices[0];
+                option.textContent = devices[1];
+                console.log("selectedDevice", selectedDevice)
+                if (option.value == selectedDevice) {
+                    option.selected = true;
+                }
+                selectElement.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('There was a problem with the fetch operation:', error);
+        });
+        createChart();
+        setInterval(fetchData, 1000);
+    
+        // Add event listeners to checkboxes
+        document.querySelectorAll('input[name="fields"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateChartVisibility);
+        });
+        // Add event listeners to select all / deselect all buttons
+        document.getElementById('selectAll').addEventListener('click', selectAllFields);
+        document.getElementById('deselectAll').addEventListener('click', deselectAllFields);
+        
+    </script>
+    
+</body>
+</html>

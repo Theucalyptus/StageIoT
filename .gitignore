@@ -2,3 +2,16 @@
 *.o
 *.d
 *.pyc
+
+
+client/old/
+client/logs/
+
+# VSCODE
+.vscode
+*.code-workspace
+
+# Python
+*/venv/
+*/__pycache__/
+*/.venv/
