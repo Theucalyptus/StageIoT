@@ -1138,15 +1138,21 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 def __getDeviceLatestLocation(deviceid):
 
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
 
-    query = "SELECT latitude, longitude FROM {0} ORDER BY timestamp DESC LIMIT 1;".format(deviceid)
-    cursor.execute(query)
-    device_location = cursor.fetchone()
-    if device_location == (None, None):
-        raise NoLocationDataException
-    return device_location
+    if deviceid in data_storage:
+        lat = data_storage[deviceid][-1]["latitude"]
+        long = data_storage[deviceid][-1]["longitude"]
+        return (lat, long)
+    else:
+        db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+        cursor = db.cursor()
+
+        query = "SELECT latitude, longitude FROM {0} ORDER BY id DESC LIMIT 1;".format(deviceid) # could cause some issues if we 
+        cursor.execute(query)
+        device_location = cursor.fetchone()
+        if device_location == (None, None):
+            raise NoLocationDataException
+        return device_location
 
 def __getNearbyObjects(deviceid, seuil):
     """
@@ -1154,20 +1160,20 @@ def __getNearbyObjects(deviceid, seuil):
     """
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    #print("getNearbyObjects", seuil, "called")
+    latitude, longitude = __getDeviceLatestLocation(deviceid)
     try:
-        latitude, longitude = __getDeviceLatestLocation(deviceid)
-
         # Récupération de la liste des appareils dans le périmètre
         neighbours = []
         for device in __queryAllDeviceIDs():
             if device != deviceid:
                 try:
                     lat2, long2 = __getDeviceLatestLocation(device)
-                    if calculate_distance(latitude, longitude, lat2, long2) < seuil:
+                    d = calculate_distance(latitude, longitude, lat2, long2)
+                    if d < seuil:
                         neighbours.append(device)
                 except NoLocationDataException:
                     pass #if __getDeviceLatestLocation failed, because we don't have any location data yet
+
 
         # recuperer les objets vus/détectés par ces appareils
         objects = {}
@@ -1186,6 +1192,7 @@ def __getNearbyObjects(deviceid, seuil):
         return objects, distances
     
     except NoLocationDataException:
+        print("called __getNearbyObjects for device", deviceid, seuil, "but no known location.")
         return {}, {}
 
 @app.route('/nearby_objects/<deviceid>', methods=['GET']) 

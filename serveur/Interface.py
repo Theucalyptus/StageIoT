@@ -98,7 +98,7 @@ def save_object_DB(object):
 
     # if object already has a permanent id, it should be in the DB and we have to update its record
     if "id" in object:
-        print("Update existing object record")
+        #print("Update existing object record")
         fields = ""
         values=[]
         id = temp.pop('id') # remove id
@@ -112,7 +112,7 @@ def save_object_DB(object):
 
     else:
         # the object is new, so assign it a permanent id and create a new record in the table
-        print("inserting new object in DB")
+        #print("inserting new object in DB")
         query = "INSERT INTO " + table +" (timestamp, seenby, latitude, longitude, label, tempId) VALUES (%(timestamp)s, %(seenby)s, %(latitude)s, %(longitude)s, %(label)s, %(tempId)s)"
         c.execute(query, (temp))
         # get the record for the newly added record
