@@ -68,6 +68,13 @@ class UartService:
         except UnicodeDecodeError as e:
             logger.warning('uart message invalid ' + str(e))
 
+    def getNearbyObjects(self):
+        """ Returns a list of nearby objects detected by the device.
+        This method is not implemented for UART service.
+        """
+        logger.warning("uart service does not support getNearbyObjects")
+        return {}
+
     def stop(self):
         self.stopVar = True
         self.thread.join()
@@ -138,7 +145,6 @@ class HTTPService:
             if r.status_code == 200:
                 data = r.json()
                 logger.info("http received " + str(data))
-                data = json.loads(data)  # ensure we have a dict
                 return data
             elif r.status_code == 204 or r.status_code == 404:
                 return {}
