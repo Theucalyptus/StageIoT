@@ -7,7 +7,9 @@ import socket
 import ubinascii
 import struct
 import _thread
+import uos
 
+uos.dupterm(None)
 
 # Disable wifi to reduce interference with the Jetson's wifi
 wlan = WLAN()
@@ -24,14 +26,14 @@ pycom.heartbeat(False) # Turning off LED heartbeat
 pycom.rgbled(0x000011) # Blue LED indicating boot
 
 ## LOPY 10
-# app_eui = '70B3D57ED003A322'
-# app_key = '3072E1FA34B866583697F768C9F9BA13'
-# dev_eui = '70b3d5499809d4ea'
+app_eui = '70B3D57ED003A322'
+app_key = '3072E1FA34B866583697F768C9F9BA13'
+dev_eui = '70b3d5499809d4ea'
 
 ## LOPY 9
-app_eui = '70B3D57ED003A324'
-app_key = '7F94B66B572B110BA2C9622D430B9EDA'
-dev_eui = '70b3d5499f211d32'
+# app_eui = '70B3D57ED003A324'
+# app_key = '7F94B66B572B110BA2C9622D430B9EDA'
+# dev_eui = '70b3d5499f211d32'
 
 ## LOPY BOX JETSON
 # app_eui = '7532159875321598'
@@ -44,18 +46,18 @@ app_key_unhex = ubinascii.unhexlify(app_key)
 dev_eui_unhex = ubinascii.unhexlify(dev_eui)
 
 ####### LoRa Service #######
-def LoRa_service(Q_out):
+def LoRa_service(Q_out, Q_in):
     lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868) # Initialize LoRa in LORAWAN mode.
     lora.join(activation=LoRa.OTAA, auth=(dev_eui_unhex, app_eui_unhex, app_key_unhex), timeout=0) # Start LoRaWA connection
     while not lora.has_joined():        # Waiting on LoRaWAN connectivity
-        print('LoRa: not yet joined...')
+        Q_in.put('LoRa: not yet joined...\n')
         pycom.rgbled(0x110A00)          # Blinking orange LED
         time.sleep(0.2)
         pycom.rgbled(0x000000)
         time.sleep(1.8)
 
     # joined
-    print('LoRa: up')
+    Q_in.put('LoRa: up\n')
     pycom.rgbled(0x002200)              # Green LED upon succesfull connection
 
 
@@ -73,25 +75,28 @@ def LoRa_service(Q_out):
     while True:
         if not Q_out.empty():
             data = Q_out.get()
-            print("LoRa: tx :", data)
+            Q_in.put("LoRa: tx :" + str(data) + "\n")
             __send(data)
 
 ####### UART Service #######
-def UART_service(Q_out):
-    uart = UART(1, baudrate=115200, pins=["P11", "P10"]) # Tx (green): P11, Rx (yellow) : P10
+def UART_service(Q_out, Q_in):
+    uart = UART(0, baudrate=115200) # default = USB on expansion board
     oldTimer = time.time() # uart heartbeat timer
     while True:
         time.sleep(1)
         data = uart.readline()
         if data != None and len(data)>1:
-            print("UART: rx :", data)
+            Q_in.put("UART: rx : " + str(data) + "\n")
             if Q_out.full():
                 Q_out.get()
             Q_out.put(data[:-1])
 
+        if not Q_in.empty():
+            msg = Q_in.get()
+            uart.write(msg)
+
         if (time.time() > oldTimer + 10):
             msg = "heartbeat "+dev_eui.lower()+"\n"
-            print("UART: tx :", msg)
             uart.write(msg)
             oldTimer = time.time()
             pycom.rgbled(0x111111) # white blinking LED = uart Tx
@@ -102,9 +107,10 @@ def UART_service(Q_out):
 
 # network output queue
 Q_out = Queue(4)
+Q_in = Queue(4)
 
-_thread.start_new_thread(LoRa_service, (Q_out,))
-UART_service(Q_out) # could be in a thread as well
+_thread.start_new_thread(LoRa_service, (Q_out,Q_in))
+UART_service(Q_out, Q_in) # could be in a thread as well
     
 
 print("main: program exit")
