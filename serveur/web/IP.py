@@ -1144,7 +1144,7 @@ def __getDeviceLatestLocation(deviceid):
     query = "SELECT latitude, longitude FROM {0} ORDER BY timestamp DESC LIMIT 1;".format(deviceid)
     cursor.execute(query)
     device_location = cursor.fetchone()
-    if device_location == None:
+    if device_location == (None, None):
         raise NoLocationDataException
     return device_location
 
@@ -1154,7 +1154,7 @@ def __getNearbyObjects(deviceid, seuil):
     """
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    print("getNearbyObjects", seuil, "called")
+    #print("getNearbyObjects", seuil, "called")
     try:
         latitude, longitude = __getDeviceLatestLocation(deviceid)
 
@@ -1567,17 +1567,18 @@ def apinearby_objects(deviceid):
     """
     
 
-    key= request.args.get('key')
-    username = get_user_from_api_key(key)
-    if username is None:
-        return jsonify({"error": "Invalid API key"}), 401
+    # key= request.args.get('key')
+    # username = get_user_from_api_key(key)
+    # if username is None:
+    #     return jsonify({"error": "Invalid API key"}), 401
     
     if deviceid not in __queryAllDeviceIDs():
         return jsonify({"error": "Device not found"}), 404
        
 
+    defSearchSize = 100
     # recuperer les objets vus par ces appareils
-    objects,distances = __getNearbyObjects(deviceid, 100) # Antoine: 100 is the default search size, can be changed by the user in the request
+    objects,_ = __getNearbyObjects(deviceid, defSearchSize) # Antoine: 100 is the default search size, can be changed by the user in the request
 
     #distances = {} 
     return jsonify(objects),200
