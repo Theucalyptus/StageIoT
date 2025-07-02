@@ -125,6 +125,7 @@ def __delete_device(deviceid,username):
     # supprimer la table contenant les données
     cursor.execute("DELETE FROM Device WHERE `device-id` = %s", (deviceid,))
     cursor.execute("DROP TABLE IF EXISTS " + deviceid)
+    db.commit()
     return cond
 
 def __getDeviceLatestLocation(deviceid):
@@ -385,7 +386,7 @@ def post_data():
                     # Ajouter les données à la base de données, donne un Id permanent si pas déjà connu
                     Interface.save_object_DB(oTemp)
                     if not "id" in oTemp:
-                        return jsonify({"status": "error", "message": "Unkown/Unregistered device"}), 200
+                        return jsonify({"status": "error", "message": "Unknown/Unregistered device"}), 200
                     # Ajouter les données à la liste d'objets
                     if data['device-id'] in objects_storage:
                         objects_storage[data['device-id']][oTemp['tempId']] = oTemp
@@ -416,7 +417,7 @@ def add_data_to_cache(data):
     # Verifier si l'eui est déjà dans le cache
     if data['device-id'] not in data_storage:
         # Ajourter l'eui au cache
-        data_storage[dafieldsta['device-id']] = [data]
+        data_storage[data['device-id']] = [data]
     else:
         # Ajouter les données au cache lié à l'eui
         data_storage[data['device-id']].append(data)
@@ -1096,11 +1097,11 @@ def edit_device(deviceid):
             name = form.name.data
             password = form.password.data
             if password == None:
-                flash('please enter the password', 'danger')
+                flash('Please enter the password', 'danger')
                 return redirect(url_for('edit_device', deviceid=deviceid))
             new_password = hash_password(form.new_password.data)
             description = form.description.data
-            lora = form.lora.data
+            lora = form.lora.data.strip().lower()
 
             match check_device_DB(deviceid,password):
                 case 1:
@@ -1110,7 +1111,16 @@ def edit_device(deviceid):
                             flash('The provided LoRa EUI is already assigned', 'danger')
                             return redirect(url_for('edit_device'))        
                         else:
-                            __editDevice(deviceid,name,new_password,description,lora)
+                            res = True
+                            try:
+                                __editDevice(deviceid,name,new_password,description,lora)
+                            except Exception as e:
+                                res = False
+                                print("__editDevice failed with exception", e)
+                            if res:
+                                flash('The device was edited successfully.', "success")
+                            else:
+                                flash("Oops. Something went wrong while editing the device.", "info")
                             return redirect(url_for('deviceList'))
                     else:
                         flash('You are not the super user of this device', 'danger')

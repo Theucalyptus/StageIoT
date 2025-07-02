@@ -30,16 +30,6 @@ app_eui = '70B3D57ED003A322'
 app_key = '3072E1FA34B866583697F768C9F9BA13'
 dev_eui = '70b3d5499809d4ea'
 
-## LOPY 9
-# app_eui = '70B3D57ED003A324'
-# app_key = '7F94B66B572B110BA2C9622D430B9EDA'
-# dev_eui = '70b3d5499f211d32'
-
-## LOPY BOX JETSON
-# app_eui = '7532159875321598'
-# app_key = '11CBA1678ECF54273F5834C41D82E57F'
-# dev_eui = '70B3D57ED0068A6F'
-
 
 app_eui_unhex = ubinascii.unhexlify(app_eui)
 app_key_unhex = ubinascii.unhexlify(app_key)
@@ -89,7 +79,7 @@ def UART_service(Q_out, Q_in):
             Q_in.put("UART: rx : " + str(data) + "\n")
             if Q_out.full():
                 Q_out.get()
-            Q_out.put(data[:-1])
+            Q_out.put(data)
 
         if not Q_in.empty():
             msg = Q_in.get()

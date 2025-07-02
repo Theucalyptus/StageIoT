@@ -15,7 +15,7 @@
             <button id="home" class="btn btn-primary" onclick="window.location.href='/'">Home</button>
         </div>
         <div class="row justify-content-center">
-            <h1 class="text-center">Modifier l'appareil {{ device }}</h1>
+            <h1 class="text-center">Editing device {{ device }}</h1>
             <div class="col-md-6">
                 <form method="POST" action="">
                     {{ form.hidden_tag() }}
@@ -53,7 +53,7 @@
                         {{ form.submit(class="btn btn-primary mt-3") }}
                     </div>
                     <br>
-                    <i>* champ obligeatoire</i>
+                    <i>* Required fields</i>
                 </form>
             </div>
        

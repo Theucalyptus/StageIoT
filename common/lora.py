@@ -9,6 +9,9 @@ logger = logging.getLogger(__name__)
 class MissingDataField(Exception):
     pass
 
+class MalformedLoraMessage(Exception):
+    pass
+
 # This module's purpose is to serialize the usual json messages into a smaller format
 # suited for transmission over the LoRa network
 
@@ -61,14 +64,19 @@ def lora_to_sample(binary):
     """
         Reverse operation of sample_to_lora. Transform a LoRa message into a easy to use python dict.
     """
-    data = {}
-    index=0
-    for f in SENSORS_MSG:
-        t = FIELDS_TYPES[f]
-        size = struct.calcsize(t)
-        data[f] = struct.unpack(t, binary[index:index+size])[0]
-        index+=size
-    return data
+    try:
+        data = {}
+        index=0
+        for f in SENSORS_MSG:
+            t = FIELDS_TYPES[f]
+            size = struct.calcsize(t)
+            #print(f, t, size, binary[index:index+size])
+            data[f] = struct.unpack(t, binary[index:index+size])[0]
+            index+=size
+        return data
+    except Exception as e:
+        logger.error("Lora sample message decoder failed")
+        raise MalformedLoraMessage(e)
 
 def objects_to_lora(data):
     try:
@@ -92,32 +100,35 @@ def objects_to_lora(data):
         raise MissingDataField()
 
 def lora_to_objects(binary):
-    
-    data = {}
-    index=0
-    for f in OBJECT_MSG_HEADER:
-        t = FIELDS_TYPES[f]
-        size = struct.calcsize(t)
-        data[f] = struct.unpack(t, binary[index:index+size])[0]
-        index+=size
-
-    objSize=0
-    for f in OBJECT_ITEM_MSG:
-        objSize+=struct.calcsize(FIELDS_TYPES[f])
-    data['objects'] = []
-    while index < len(binary):
-        o = {}
-        for f in OBJECT_ITEM_MSG:
+    try:
+        data = {}
+        index=0
+        for f in OBJECT_MSG_HEADER:
             t = FIELDS_TYPES[f]
             size = struct.calcsize(t)
-            o[f] = struct.unpack(t, binary[index:index+size])[0]
-            index +=size
-        data['objects'].append(o)
-    # post-processing
-    for o in data['objects']:
-        o['label'] = OBJECTS_LABELS[o['label']] # decode object label
-    return data
+            data[f] = struct.unpack(t, binary[index:index+size])[0]
+            index+=size
 
+        objSize=0
+        for f in OBJECT_ITEM_MSG:
+            objSize+=struct.calcsize(FIELDS_TYPES[f])
+        data['objects'] = []
+        while index < len(binary):
+            o = {}
+            for f in OBJECT_ITEM_MSG:
+                t = FIELDS_TYPES[f]
+                size = struct.calcsize(t)
+                o[f] = struct.unpack(t, binary[index:index+size])[0]
+                index +=size
+            data['objects'].append(o)
+        # post-processing
+        for o in data['objects']:
+            o['label'] = OBJECTS_LABELS[o['label']] # decode object label
+        return data
+    except Exception as e:
+        logger.error("Lora Object message decoder failed")
+        raise MalformedLoraMessage(e)
+    
 def get_message_type(binary):
     return struct.unpack(FIELDS_TYPES['type'], binary[0:struct.calcsize(FIELDS_TYPES['type'])])[0]
 

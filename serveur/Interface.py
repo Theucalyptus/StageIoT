@@ -39,7 +39,7 @@ def __getDeviceIDFromEUI(lora_eui: str):
     global db, db_cursor
     c = db_cursor
     query = "SELECT `device-id` FROM Device WHERE `lora-dev-eui` = %s;"
-    c.execute(query, (lora_eui.lower(),))
+    c.execute(query, (lora_eui.lower().strip(),))
     res = None
     try:
         res = c.fetchone()[0]
@@ -61,6 +61,7 @@ def save_sample_DB(data):
                 if not __checkColumnExists(deviceid, field):
                     add_col_query = "ALTER TABLE " + deviceid + " ADD COLUMN "+ field + " " + str(__getSQLDataType(data[field])) + " DEFAULT NULL;"
                     c.execute(add_col_query, ())
+                db.commit()               
 
         # insert data
         query = "INSERT INTO "+ deviceid +" ("
@@ -109,12 +110,15 @@ def save_object_DB(object):
         values.append(id)
         query = "UPDATE " + table + " SET " + fields + " WHERE id=%s"
         c.execute(query, (values))
+        db.commit()               
 
     else:
         # the object is new, so assign it a permanent id and create a new record in the table
         #print("inserting new object in DB")
         query = "INSERT INTO " + table +" (timestamp, seenby, latitude, longitude, label, tempId) VALUES (%(timestamp)s, %(seenby)s, %(latitude)s, %(longitude)s, %(label)s, %(tempId)s)"
         c.execute(query, (temp))
+        db.commit()               
+
         # get the record for the newly added record
         query = "SELECT id FROM " + table + " WHERE seenby=%s AND tempId=%s ORDER BY timestamp DESC LIMIT 1;"
         c.execute(query, ([temp['seenby'], temp['tempId']]))
@@ -132,12 +136,12 @@ def data_LoRa_handler(message,device):
         elif type == MessageTypes.OBJECT_REPORT:
             message = lora.lora_to_objects(message)
         else:
-            print("Unkown message type")
+            print("Unknown message type")
             raise NotImplementedError
         message['device-id'] = deviceid
         requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
     else:
-        print("unkown lora EUI ({device}), ignoring message")
+        print("unkown lora EUI ({0}), ignoring message".format(device))
 
 def LoRa_msg_handler(msg):
     try :
@@ -154,13 +158,13 @@ def LoRa_msg_handler(msg):
                 data = base64.b64decode(data.encode())
                 data_LoRa_handler(data, device)
     except (RuntimeError,KeyError) as e :
-        print("ERROR", msg.playload, e)
+        print("ERROR", msg.payload, e)
 
 def Web_msg_handler(data_sample):
   
     
-    db=mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor=db.cursor(buffered=True)
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor=db.cursor()
 
     # check if the device exists
     device = data_sample["device-id"]
@@ -176,11 +180,9 @@ def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
     global db, db_cursor, Config
     print("Starting Interface node")
     Config=Config_
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"])
-    db_cursor = db.cursor(buffered=True)
-    db_query = "USE "+ utils.sql_var(Config["db_name"])
-    db_cursor.execute(db_query)
-    
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
+    db_cursor = db.cursor()
+
     while True:
         try:
             while Q_Lora.empty() and Q_web.empty():
@@ -192,5 +194,5 @@ def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
                 message = Q_web.get()
                 Web_msg_handler(message)
         except Exception as e:
-            print("Iterface: ERROR:", e)
+            print("Interface: ERROR:", e)
 
