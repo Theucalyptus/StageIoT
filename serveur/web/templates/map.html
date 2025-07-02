@@ -89,7 +89,7 @@
                /*  object_markers.forEach(m => {
                     map.removeLayer(m);
                 }); */
-                fetch('/get_recent_data')
+                fetch('/get_latest_data')
                 .then(response => response.json())
                 .then(data => {
                     for(device in data){

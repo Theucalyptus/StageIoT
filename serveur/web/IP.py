@@ -1,12 +1,9 @@
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, flash, Request
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session, flash
 from flask_cors import CORS
 from flask_httpauth import HTTPTokenAuth
 from flask_restful import Api
-from flask_wtf import FlaskForm
 from queue import Queue
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length, EqualTo, Optional
 import base64
 import bcrypt
 import csv
@@ -21,7 +18,7 @@ from common.msgTypes import MessageTypes
 import time
 
 import Interface
-
+from web.forms import *
 
 class NoLocationDataException(Exception):
     pass
@@ -37,6 +34,207 @@ Q_out: Queue
 data_storage = {}
 objects_storage = {}
 Config = {}
+
+### AUXILIARY FUNCTIONS
+
+def __queryAvailableFields(deviceID):
+    """
+        Returns a list of strings of all available data fields for a given device.
+    """
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
+    cursor = db.cursor()
+
+    query = "SHOW COLUMNS FROM " + deviceID + ";"
+    cursor.execute(query)
+    res = cursor.fetchall()
+    excluded = ['id']
+    return [c[0] for c in res if c[0] not in excluded]
+
+def __getDeviceData(device, fields: list[str], startTime:datetime, endTime:datetime):
+    """
+        Retrives the sensors data of the provided data fields for a particular device between to timestamps, from the databse.
+        Args:
+            deviceid : str
+            fields : list[str] : names of the data fields (all if empty or null)
+            startTime, endTime : datetime objects
+    """
+
+    # Connect to the DB
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    
+    # Retrieve data from the database based on the selected criteria
+    fieldsStr = (', '.join(fields)) if fields != None and fields != [] else '*'
+    query = f"SELECT {fieldsStr} FROM " + device + " WHERE timestamp BETWEEN %s AND %s"
+    cursor.execute(query, (startTime, endTime))
+    data = cursor.fetchall()
+
+    return data
+
+def __editDevice(deviceid,name,password,description,lora):
+    """
+    Edit the device and its association with the user.
+
+    Args:
+        deviceid (str): The device id to be edited.
+        name (str): The new name of the device
+        password (str): The hash of the new password
+        description (str): The new description for the device
+
+    """
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    
+    data = {}
+    if name not in [None, ""]:
+        data['name']= name
+    if password not in [None, ""]:
+        data['password']= password.decode("utf-8")
+
+    data['description'] = description
+    data['lora-dev-eui'] = lora
+    fields = ""
+    values=[]
+    for d in data:
+        fields+="`"+ d+"`=%s ,"
+        values.append(str(data[d]))
+    fields=fields[:-2]
+    query = "UPDATE Device SET "+ fields +" WHERE `device-id` = %s"
+    values.append(deviceid)
+    cursor.execute(query, values)
+    db.commit()
+
+def __delete_device(deviceid,username):
+    """
+    Deletes the device and its association with the user.
+    Also deletes all sensor data !
+    
+    Args:
+        deviceid (str): The device EUI to be deleted.
+        username (str): The name of the user you want to delete the device from.
+
+    """
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    # Supprimer la liaison entre l'appareil et l'utilisateur
+    cond =(check_link_device(deviceid,username) == 1)
+    if cond:
+        query = "DELETE FROM DeviceOwners WHERE device = %s AND owner = %s"
+        cursor.execute(query, (deviceid, username))
+        db.commit()
+    # supprimer la table contenant les données
+    cursor.execute("DELETE FROM Device WHERE `device-id` = %s", (deviceid,))
+    cursor.execute("DROP TABLE IF EXISTS " + deviceid)
+    return cond
+
+def __getDeviceLatestLocation(deviceid):
+
+
+    if deviceid in data_storage:
+        lat = data_storage[deviceid][-1]["latitude"]
+        long = data_storage[deviceid][-1]["longitude"]
+        return (lat, long)
+    else:
+        db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+        cursor = db.cursor()
+
+        query = "SELECT latitude, longitude FROM {0} ORDER BY id DESC LIMIT 1;".format(deviceid) # could cause some issues if we 
+        cursor.execute(query)
+        device_location = cursor.fetchone()
+        if device_location == (None, None):
+            raise NoLocationDataException
+        return device_location
+
+def __getNearbyObjects(deviceid, seuil):
+    """
+    Get the list of all objects detected **by other devices** in the specified range around the requested device.
+
+    Args:
+    - deviceid: str
+    - seuil: number: the radius of the search zone
+    """
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    latitude, longitude = __getDeviceLatestLocation(deviceid)
+    try:
+        # Récupération de la liste des appareils dans le périmètre
+        neighbours = []
+        for device in __queryAllDeviceIDs():
+            if device != deviceid:
+                try:
+                    lat2, long2 = __getDeviceLatestLocation(device)
+                    d = calculate_distance(latitude, longitude, lat2, long2)
+                    if d < seuil:
+                        neighbours.append(device)
+                except NoLocationDataException:
+                    pass #if __getDeviceLatestLocation failed, because we don't have any location data yet
+
+
+        # recuperer les objets vus/détectés par ces appareils
+        objects = {}
+        distances = {}
+        for neighbour in neighbours:
+            if neighbour in objects_storage:
+                temp = objects_storage[neighbour]
+                objects[neighbour] = temp
+                distances[neighbour] = {}
+                for (objId, objData) in temp.items():
+                    distance = calculate_distance(latitude, longitude, objData['latitude'], objData['longitude'])
+                    distances[neighbour][objId] = distance
+            else:
+                print("no objects close enough for neighbour", neighbour)
+
+        return objects, distances
+    
+    except NoLocationDataException:
+        print("called __getNearbyObjects for device", deviceid, seuil, "but no known location.")
+        return {}, {}
+
+def __queryUserDeviceList(username):
+    """
+    Returns the list of all device id and device names associated with a user.
+
+    Args:
+    - username: str
+    """
+    
+    
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    query = """
+    SELECT Device.`device-id`, Device.name 
+    FROM Device
+    JOIN DeviceOwners ON Device.`device-id` = DeviceOwners.device
+    WHERE DeviceOwners.owner = %s
+    """ 
+    
+    cursor.execute(query, (username,))
+    devices = cursor.fetchall()
+    
+    result = [{"device-id": device[0], "name": device[1]} for device in devices]
+    return result
+
+def __queryAllDeviceIDs():
+    """
+    Retrieves the list of all registed device id's from the database.
+
+    Returns: list[str]
+    """
+
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    query = """
+    SELECT Device.`device-id` 
+    FROM Device
+    """ 
+    cursor.execute(query, ())
+    devices = cursor.fetchall()
+    devlist = [device[0] for device in devices]
+
+    return devlist
+
+
+## AUTHENTICATION
 
 def hash_password(password):
     """
@@ -88,7 +286,6 @@ def verify_token(t):
     result = cursor.fetchall()
     return len(result) > 0
 
-# Gestion des erreurs HTTP
 @auth.error_handler
 def err_handler(error):
     """
@@ -132,6 +329,7 @@ def check_user_token():
     else:
         return None
 
+## WUI Routes
 @app.route('/')
 def accueil():
     """
@@ -150,7 +348,6 @@ def accueil():
 @app.route('/objects', methods=['GET', 'POST'])
 def objects():
     return render_template('objects.html')
-
 
 @app.route('/connectivityCheck', methods=['GET'])
 def connCheck():
@@ -219,7 +416,7 @@ def add_data_to_cache(data):
     # Verifier si l'eui est déjà dans le cache
     if data['device-id'] not in data_storage:
         # Ajourter l'eui au cache
-        data_storage[data['device-id']] = [data]
+        data_storage[dafieldsta['device-id']] = [data]
     else:
         # Ajouter les données au cache lié à l'eui
         data_storage[data['device-id']].append(data)
@@ -289,9 +486,9 @@ def get_data():
                         data[device]+=data_storage[device]
     return jsonify(data) 
 
-@app.route('/get_recent_data', methods=['GET'])
+@app.route('/get_latest_data', methods=['GET'])
 @auth.login_required
-def get_recent_data():
+def get_latest_data():
     """
     Retrieves the most recent data from the data storage for each devices.
 
@@ -399,7 +596,7 @@ def visualize():
 
     selectedDevice = request.args.get('dev', None)
     if selectedDevice==None or selectedDevice == "":
-        devices = __queryDeviceList(session.get('username'))
+        devices = __queryUserDeviceList(session.get('username'))
         defaultDevice = devices[0]['device-id']
         return redirect("/visualize?dev="+defaultDevice)
     else:
@@ -447,20 +644,6 @@ def downloadall():
         download_name=f'iot_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     )
 
-
-def __queryAvailableFields(deviceID):
-    """
-        Returns a string list of all available data fields for a given device.
-    """
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
-    cursor = db.cursor()
-
-    query = "SHOW COLUMNS FROM " + deviceID + ";"
-    cursor.execute(query)
-    res = cursor.fetchall()
-    excluded = ['id']
-    return [c[0] for c in res if c[0] not in excluded]
-
 @app.route('/download', methods=['GET', 'POST'])
 @auth.login_required
 def download():
@@ -489,18 +672,10 @@ def download():
             for f in field:
                 selected_fields.append(f)
         
-        # Se connecter à la base de données
-        db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-        cursor = db.cursor()
-        
-        # Convert datetime-local input to datetime object
-        start_time = datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
-        end_time = datetime.strptime(end_time, '%Y-%m-%dT%H:%M')
-
-        # Retrieve data from the database based on the selected criteria
-        query = f"SELECT {', '.join(selected_fields)} FROM " + deviceid + " WHERE timestamp BETWEEN %s AND %s"
-        cursor.execute(query, (start_time, end_time))
-        data = cursor.fetchall()
+        fmt='%Y-%m-%dT%H:%M'
+        start_time = datetime.strptime(start_time, fmt)
+        end_time = datetime.strptime(end_time, fmt)
+        data = __getDeviceData(deviceid, selected_fields, start_time, end_time)
 
         # Generate CSV file
         output = io.StringIO()
@@ -518,52 +693,14 @@ def download():
         )
     
     else:
-        devices = __queryDeviceList(username)
+        devices = __queryUserDeviceList(username)
         if deviceid==None or deviceid == "" or deviceid=="undefined":
             deviceid = devices[0]['device-id']
             return redirect("/download?dev="+deviceid)
         else:
             fields = __queryAvailableFields(deviceid)
             return render_template('download.html', selectedDevice=deviceid, devices=devices, fields=fields)
-
-# formulaire de login utilisateur
-class LoginForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=1, max=255)])
-    password = PasswordField('Password', validators=[DataRequired()])
-    submit = SubmitField('Login')
-
-# formulaire d'enregistrement d'un utilisateur
-class RegistrationForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=255)])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6, max=60)])
-    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    submit = SubmitField('Register')
-
-# formulaire d'enregistrement d'un appareil
-class DeviceAssociationForm(FlaskForm):
-    deviceid = StringField('Device ID', validators=[DataRequired(), Length(min=1, max=32)])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6, max=60)])
-    submit = SubmitField('Associate')
-
-# formulaire d'enregistrement d'un appareil
-class DeviceRegistrationForm(FlaskForm):
-    deviceid = StringField('Device ID', validators=[DataRequired(), Length(min=1, max=32)])
-    name = StringField('Name', validators=[DataRequired(), Length(min=2, max=20)])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=6, max=60)])
-    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
-    lora_dev_eui = StringField('LoRa Device ID (dev eui)', validators=[Optional(), Length(min=16, max=16)])
-    submit2 = SubmitField('Register')
-
-# formulaire d'edition d'un appareil
-class DeviceEditForm(FlaskForm):
-    name = StringField('Name *', validators=[DataRequired(), Length(min=2, max=20)])
-    description = TextAreaField('Description', validators=[Length(min=0, max=500)])
-    lora = StringField('LoRa EUI', validators=[Optional(), Length(min=16, max=16)])
-    password = PasswordField('Curent Password *', validators=[DataRequired(), Length(min=6, max=60)])
-    new_password = PasswordField('new Password', validators=[Length(min=6, max=60)], default="")
-    confirm_password = PasswordField('Confirm new Password', validators=[EqualTo('new Password')], default="")
-    submit = SubmitField('Edit Device')
-          
+       
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """
@@ -998,39 +1135,6 @@ def edit_device(deviceid):
         flash('User not logged in', 'danger')
         return redirect(url_for('login'))
 
-def __editDevice(deviceid,name,password,description,lora):
-    """
-    Edit the device and its association with the user.
-
-    Args:
-        deviceid (str): The device id to be edited.
-        name (str): The new name of the device
-        password (str): The hash of the new password
-        description (str): The new description for the device
-
-    """
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-    
-    data = {}
-    if name not in [None, ""]:
-        data['name']= name
-    if password not in [None, ""]:
-        data['password']= password.decode("utf-8")
-
-    data['description'] = description
-    data['lora-dev-eui'] = lora
-    fields = ""
-    values=[]
-    for d in data:
-        fields+="`"+ d+"`=%s ,"
-        values.append(str(data[d]))
-    fields=fields[:-2]
-    query = "UPDATE Device SET "+ fields +" WHERE `device-id` = %s"
-    values.append(deviceid)
-    cursor.execute(query, values)
-    db.commit()
-
 def check_superowner(deviceid, username):
     """
     Check if the given device and owner combination has super-owner privileges.
@@ -1067,28 +1171,6 @@ def delete_dev(deviceid):
         return jsonify({"status": "error"}), 400 
     return redirect(url_for('deviceList'))
 
-def __delete_device(deviceid,username):
-    """
-    Deletes the device and its association with the user.
-
-    Args:
-        deviceid (str): The device EUI to be deleted.
-        username (str): The name of the user you want to delete the device from.
-
-    """
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-    # Supprimer la liaison entre l'appareil et l'utilisateur
-    cond =(check_link_device(deviceid,username) == 1)
-    if cond:
-        query = "DELETE FROM DeviceOwners WHERE device = %s AND owner = %s"
-        cursor.execute(query, (deviceid, username))
-        db.commit()
-    # supprimer la table contenant les données
-    cursor.execute("DELETE FROM Device WHERE `device-id` = %s", (deviceid,))
-    cursor.execute("DROP TABLE IF EXISTS " + deviceid)
-    return cond
-    
 @app.route('/profile', methods=['GET', 'POST'])
 @auth.login_required
 def profile():
@@ -1136,65 +1218,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     distance = R * c
     return distance
 
-def __getDeviceLatestLocation(deviceid):
-
-
-    if deviceid in data_storage:
-        lat = data_storage[deviceid][-1]["latitude"]
-        long = data_storage[deviceid][-1]["longitude"]
-        return (lat, long)
-    else:
-        db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-        cursor = db.cursor()
-
-        query = "SELECT latitude, longitude FROM {0} ORDER BY id DESC LIMIT 1;".format(deviceid) # could cause some issues if we 
-        cursor.execute(query)
-        device_location = cursor.fetchone()
-        if device_location == (None, None):
-            raise NoLocationDataException
-        return device_location
-
-def __getNearbyObjects(deviceid, seuil):
-    """
-        Get the list of all objects detected **by other devices** in the specified range.
-    """
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-    latitude, longitude = __getDeviceLatestLocation(deviceid)
-    try:
-        # Récupération de la liste des appareils dans le périmètre
-        neighbours = []
-        for device in __queryAllDeviceIDs():
-            if device != deviceid:
-                try:
-                    lat2, long2 = __getDeviceLatestLocation(device)
-                    d = calculate_distance(latitude, longitude, lat2, long2)
-                    if d < seuil:
-                        neighbours.append(device)
-                except NoLocationDataException:
-                    pass #if __getDeviceLatestLocation failed, because we don't have any location data yet
-
-
-        # recuperer les objets vus/détectés par ces appareils
-        objects = {}
-        distances = {}
-        for neighbour in neighbours:
-            if neighbour in objects_storage:
-                temp = objects_storage[neighbour]
-                objects[neighbour] = temp
-                distances[neighbour] = {}
-                for (objId, objData) in temp.items():
-                    distance = calculate_distance(latitude, longitude, objData['latitude'], objData['longitude'])
-                    distances[neighbour][objId] = distance
-            else:
-                print("no objects close enough for neighbour", neighbour)
-
-        return objects, distances
-    
-    except NoLocationDataException:
-        print("called __getNearbyObjects for device", deviceid, seuil, "but no known location.")
-        return {}, {}
-
 @app.route('/nearby_objects/<deviceid>', methods=['GET']) 
 @auth.login_required
 def nearby_objects(deviceid):
@@ -1203,6 +1226,7 @@ def nearby_objects(deviceid):
 
     Args:
         deviceid (str): The device ID.
+        size: the search radius (in meters, default=100)
 
     Returns:
         A rendered HTML template with the nearby objects.
@@ -1225,7 +1249,61 @@ def nearby_objects(deviceid):
 """                             API                               """
 """==============================================================="""
 
-@app.route('/getApiKey', methods=['GET'])
+# USED BY FRONTED
+@app.route('/api/getObject/<deviceid>', methods=['GET'])
+def apiGetObject(deviceid):
+    """
+    Retrieve all objects identified by a device from the objects_storage, based on the device id (eui).
+
+    Args:
+        deviceid (str): The deviceid of the device.
+
+    Returns:
+        tuple: A tuple containing the JSON response and the HTTP status code.
+            The JSON response contains the object if found, otherwise an error message.
+            The HTTP status code is 200 if the object is found, otherwise 404.
+    """
+
+    if deviceid in objects_storage:
+        return jsonify(list(objects_storage[deviceid].values())), 200
+    elif deviceid in __queryAllDeviceIDs():
+         return jsonify(None), 200 # device exists, but no object is seen by this device
+    else:
+        return jsonify({"error": "Object not found"}), 404
+
+# USED BY CLIENTS
+@app.route('/api/nearby_objects/<deviceid>', methods=['GET'])
+def apinearby_objects(deviceid):
+    """
+    Retrieve nearby objects based on the given device ID.
+    
+    Antoine: retrieve objects seen by nearby devices (excluding the ones seen by ourselves)
+
+    Args:
+        deviceid (str): The device ID.
+
+    Returns:
+        list: A list of nearby objects.
+
+    """
+    
+    # key= request.args.get('key')
+    # username = get_user_from_api_key(key)
+    # if username is None:
+    #     return jsonify({"error": "Invalid API key"}), 401
+    
+    if deviceid not in __queryAllDeviceIDs():
+        return jsonify({"error": "Device not found"}), 404
+       
+
+    defSearchSize = 100
+    # recuperer les objets vus par ces appareils
+    objects,_ = __getNearbyObjects(deviceid, defSearchSize) # Antoine: 100 is the default search size, can be changed by the user in the request
+
+    #distances = {} 
+    return jsonify(objects),200
+
+@app.route('/api/getKey', methods=['GET'])
 @auth.login_required
 def get_api_keys():
     """
@@ -1245,7 +1323,7 @@ def get_api_keys():
     api_keys = cursor.fetchall()
     return jsonify(api_keys[0][0])
 
-@app.route('/generateApiKey', methods=['GET', 'POST'])
+@app.route('/api/genKey', methods=['GET', 'POST'])
 @auth.login_required
 def generate_api_key():
     """
@@ -1271,7 +1349,7 @@ def generate_api_key():
     
     return jsonify(api_key)
 
-def get_user_from_api_key(api_key):
+def __get_user_from_api_key(api_key):
     """
     Retrieve the username associated with the given API key.
 
@@ -1292,22 +1370,6 @@ def get_user_from_api_key(api_key):
     else:
         return None
 
-def __queryDeviceList(username):
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-    query = """
-    SELECT Device.`device-id`, Device.name 
-    FROM Device
-    JOIN DeviceOwners ON Device.`device-id` = DeviceOwners.device
-    WHERE DeviceOwners.owner = %s
-    """ 
-    
-    cursor.execute(query, (username,))
-    devices = cursor.fetchall()
-    
-    result = [{"device-id": device[0], "name": device[1]} for device in devices]
-    return result
-
 @app.route('/api/deviceList', methods=['GET', 'POST'])
 def apiDeviceList():
     """
@@ -1317,16 +1379,20 @@ def apiDeviceList():
         A JSON response containing the list of devices, where each device is represented as a dictionary with 'dev-eui' and 'name' keys.
     """
     key = request.args.get('key')
-    username = get_user_from_api_key(key)
-    return jsonify(__queryDeviceList(username))
+    username = __get_user_from_api_key(key)
+    return jsonify(__queryUserDeviceList(username))
 
 @app.route('/api/deviceData/<deviceid>', methods=['GET'])
 def apiDevice_data(deviceid):
     """
-    Retrieve data from the 'Data' table based on the specified device EUI and time range.
+    Retrieve data from the device data table based on the specified device ID and time range.
 
     Args:
-        deviceid (str): The device EUI.
+        deviceid (str): The device ID.
+
+        Optional:
+        - start_time, end_time : formated string %Y-%M-%d %H-%m-%S
+        - dataFields : list of data fields (ex: ['latitude', 'longitude'])
 
     Returns:
         flask.Response: A JSON response containing the retrieved data.
@@ -1336,55 +1402,60 @@ def apiDevice_data(deviceid):
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     key = request.args.get('key')
-    username = get_user_from_api_key(key)
+    username = __get_user_from_api_key(key)
+    # TODO: check if user is allowed to querry the data from this device
 
-    start_date = request.args.get('start_date', default=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'))
-    end_date = request.args.get('end_date', default=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    start_date = request.args.get('start_date', default=(datetime.now() - timedelta(days=1)))
+    end_date = request.args.get('end_date', default=datetime.now())
     
-    dataType = str(request.args.get('dataType', default='*'))
+    fmt='%Y-%m-%d %H:%M:%S'
+    if type(start_date) == str:
+        start_date = datetime.strptime(start_date, fmt)
+    if type(end_date) == str:
+        end_date = datetime.strptime(end_date, fmt)       
 
-    # if dataType in data_format.keys():
-    #     select_clause = dataType
-    # elif dataType == "*":
-    #     select_clause = "*"
-    # else:
-    return jsonify({"error": "Invalid data type"})
+    dataFields = request.args.get('dataType')
 
-    query = f"""
-    SELECT * FROM Data
-    JOIN Device ON Data.source = Device.`device-id`
-    JOIN DeviceOwners ON Device.`device-id` = DeviceOwners.device
-    WHERE DeviceOwners.owner = %s 
-    AND Data.timestamp BETWEEN %s AND %s
-    AND Device.`device-id` = %s   
-    ORDER BY Data.timestamp DESC;
-    """
+    data = __getDeviceData(deviceid, dataFields, start_date, end_date)
+    return jsonify(data), 200
+    
+    # return jsonify({"error": "Invalid data type"})
 
-    cursor.execute(query, (username, start_date, end_date, deviceid))
-    data = cursor.fetchall()
-    # print(data)
-    # print(datetime.timestamp(data[0][0]))
+    # query = f"""
+    # SELECT * FROM Data
+    # JOIN Device ON Data.source = Device.`device-id`
+    # JOIN DeviceOwners ON Device.`device-id` = DeviceOwners.device
+    # WHERE DeviceOwners.owner = %s 
+    # AND Data.timestamp BETWEEN %s AND %s
+    # AND Device.`device-id` = %s   
+    # ORDER BY Data.timestamp DESC;
+    # """
+
+    # cursor.execute(query, (username, start_date, end_date, deviceid))
+    # data = cursor.fetchall()
+    # # print(data)
+    # # print(datetime.timestamp(data[0][0]))
     
-    columns = [col[0] for col in cursor.description]
-    to_remove =[]
-    to_remove.append(columns.index('password'))
-    to_remove.append(columns.index('source'))
-    to_remove.append(columns.index('dev-eui'))
-    for col in range(len(columns)-1):
-        if not (columns[col] in select_clause) and select_clause!="*":
-            to_remove.append(col)
+    # columns = [col[0] for col in cursor.description]
+    # to_remove =[]
+    # to_remove.append(columns.index('password'))
+    # to_remove.append(columns.index('source'))
+    # to_remove.append(columns.index('dev-eui'))
+    # for col in range(len(columns)-1):
+    #     if not (columns[col] in select_clause) and select_clause!="*":
+    #         to_remove.append(col)
     
-    indexes = list(range(0,len(columns)-1))
-    to_remove.sort(reverse=True)
-    for i in to_remove:
-        columns.pop(i)
-        indexes.pop(i)
-    data = [[row[i] for i in indexes] for row in data]
+    # indexes = list(range(0,len(columns)-1))
+    # to_remove.sort(reverse=True)
+    # for i in to_remove:
+    #     columns.pop(i)
+    #     indexes.pop(i)
+    # data = [[row[i] for i in indexes] for row in data]
     
-    result = [dict(zip(columns, row)) for row in data]
-    for i in range(len(result)):
-        result[i]["timestamp"]=datetime.timestamp(result[i]["timestamp"])
-    return jsonify(result),200
+    # result = [dict(zip(columns, row)) for row in data]
+    # for i in range(len(result)):
+    #     result[i]["timestamp"]=datetime.timestamp(result[i]["timestamp"])
+    # return jsonify(result),200
 
 @app.route('/api/publicDeviceData/<deviceid>', methods=['GET'])
 def publicApiDevice_data(deviceid):
@@ -1402,7 +1473,7 @@ def publicApiDevice_data(deviceid):
     cursor = db.cursor()
 
     key = request.args.get('key')
-    username = get_user_from_api_key(key)
+    username = __get_user_from_api_key(key)
 
     start_date = request.args.get('start_date', default=(datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'))
     end_date = request.args.get('end_date', default=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -1455,7 +1526,7 @@ def apiRegisterDevice():
     name = request.args.get('name')
     password = request.args.get('pwd')
     key = request.args.get('key')
-    username = get_user_from_api_key(key)
+    username = __get_user_from_api_key(key)
     if  not (name and deviceid and password and key) :
         return jsonify({"status": "error", "message": 'Require Fields : deviceid, name, pwd, key'}), 400
 
@@ -1494,7 +1565,7 @@ def apiDeleteDevice():
     
     key = request.args.get('key')
 
-    username = get_user_from_api_key(key)
+    username = __get_user_from_api_key(key)
     if  not (deviceid and key) :
         return jsonify({"status": "error", "message": 'Require Fields : deviceid key'}), 400
 
@@ -1524,7 +1595,7 @@ def apiNeighbourList(deviceid):
 
     key = request.args.get('key')
     size = request.args.get('size', 0.001)
-    username = get_user_from_api_key(key)
+    username = __get_user_from_api_key(key)
     if username is None:
         return jsonify({"error": "Invalid API key"}), 401
 
@@ -1557,73 +1628,6 @@ def apiNeighbourList(deviceid):
 
     
     return jsonify(neighbours)
-
-@app.route('/api/nearby_objects/<deviceid>', methods=['GET'])
-def apinearby_objects(deviceid):
-    """
-    Retrieve nearby objects based on the given device ID.
-    
-    Antoine: retrieve objects seen by nearby devices (excluding the ones seen by ourselves)
-
-    Args:
-        deviceid (str): The device ID.
-
-    Returns:
-        list: A list of nearby objects.
-
-    """
-    
-
-    # key= request.args.get('key')
-    # username = get_user_from_api_key(key)
-    # if username is None:
-    #     return jsonify({"error": "Invalid API key"}), 401
-    
-    if deviceid not in __queryAllDeviceIDs():
-        return jsonify({"error": "Device not found"}), 404
-       
-
-    defSearchSize = 100
-    # recuperer les objets vus par ces appareils
-    objects,_ = __getNearbyObjects(deviceid, defSearchSize) # Antoine: 100 is the default search size, can be changed by the user in the request
-
-    #distances = {} 
-    return jsonify(objects),200
-
-def __queryAllDeviceIDs():
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-    query = """
-    SELECT Device.`device-id` 
-    FROM Device
-    """ 
-    cursor.execute(query, ())
-    devices = cursor.fetchall()
-    devlist = [device[0] for device in devices]
-
-    return devlist
-
-@app.route('/api/getObject/<deviceid>', methods=['GET'])
-def apiGetObject(deviceid):
-    """
-    Retrieve all objects identified by a device from the objects_storage, based on the device id (eui).
-
-    Args:
-        deviceid (str): The deviceid of the device.
-
-    Returns:
-        tuple: A tuple containing the JSON response and the HTTP status code.
-            The JSON response contains the object if found, otherwise an error message.
-            The HTTP status code is 200 if the object is found, otherwise 404.
-    """
-
-    if deviceid in objects_storage:
-        return jsonify(list(objects_storage[deviceid].values())), 200
-    elif deviceid in __queryAllDeviceIDs():
-         return jsonify(None), 200 # device exists, but no object is seen by this device
-    else:
-        return jsonify({"error": "Object not found"}), 404
-
 
 
 """==============================================================="""

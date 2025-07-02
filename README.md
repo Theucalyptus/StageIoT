@@ -60,12 +60,19 @@ In the `seuveur/config.conf` file, one can set:
 - the database settings (endpoint, authentication)
 - connection with *The Things Network* (endpoint, authentication)
 
+#### API
+Command-line usage example, with HTTPie:
+```sh
+# get request
+http <url>/api/deviceData/<deviceid> key==<your api key> start_date=="2025-01-01 00:00:00"
+```
+
 ### Client
 The client is indented to be used on an mobile/embedded computer, like a NVidia Jetson or a Raspberry Pi. It collectes data from sensors, logs the data locally and periodicaly sends it over the network.
-Additional sensors can be implemented by simply inheriting the `Sensor` class. It is **mandatory** for each client to have a GPS and provide the `latitude` and `longitude` values when syncing with the network.
+Additional sensors can be implemented by simply inheriting the `Sensor` class. It is **required** for each client to have a GPS and provide the `latitude` and `longitude` values when syncing with the network, or many features of the platform wont be available.
 
 - All sensors are registered in `sensorsList`. The order is significant: if multiple sensors provide the same data field, the data from the latest one will override the others. 
-- objects detected by the cameras are approximatly located using a combination of the GPS coordinates and Azimuth provided by the phone, and the position of objects relative to the camera (with the condition that the camera is oriented the same way as the phone, i.e the top of the screen of the phone is ponting the same way as the lenses)
+- objects detected by the camera are approximatly located using a combination of the GPS coordinates and azimuth provided by the phone, and the position of objects relative to the camera (with the condition that the camera is oriented the same way as the phone, i.e the top of the screen of the phone is ponting the same way as the lenses)
 
 #### Configuration
 See `client/config.conf` for all available options. You can enable/disable sensors, and set networking options.
@@ -84,6 +91,10 @@ If you run into errors with the camera, try the `fix-udev.sh` script for setting
 If you run into permission issues with UART, you should check which group has read/write permission on the serial interface, and add the user running the program to this group. The group is usually `dialout` or `uucp`. You can see the group with `stat -C "%G" /dev/<your serial interface>`. To add a user to a group, check your distribution's wiki (but often its `sudo usermod -a -G <user> <group>`, you need to logout and login again for changes to apply). Running the program as root is *not recommanded*.
 
 
-## Improvements / TODO:
+## Improvements:
 1. ~~Redo device edit/list page to show lora eui if present~~ DONE (31008e87991f8ac9bcb3403117db5f9f2508782d)
 2. Multiple LoRa message structure for different devices (for now they must all use the same) UPDATE: can be done quite easily by editing the common/lora functions server side to take the deviceid, and provide a list of format.
+3. As of now, clients are polling to API to retrieve le list of nearby objects reported by other devices. This could be improved by using a messaging system, so clients only receive the necessary information without polling
+4. Provide a way to configure a client/device as a stationnary equipement, removing the need for a GPS.
+5. Live Data persistence: device live data are removed from cache after 1 hour, objects are stored in cache until the app is stopped.
+6. Re-use code between to WUI and the API
