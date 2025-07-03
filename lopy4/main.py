@@ -68,31 +68,50 @@ def LoRa_service(Q_out):
 
 ####### UART Service #######
 def UART_service(Q_out):
+    DELIMITER = bytes('\n\n\n\n', 'utf-8')
+
     uart = UART(1, baudrate=115200, pins=["P11", "P10"]) # Tx (green): P11, Rx (yellow) : P10
     oldTimer = time.time() # uart heartbeat timer
+    
+    def __sendU(msgBytes):
+        uart.write(msgBytes+DELIMITER)
+    
+    def __addQ(data):
+        if Q_out.full():
+            Q_out.get()
+        Q_out.put(data)
+        #__sendU(data) ## ECHO
+    
+    tempBuffer = b''
     while True:
-        time.sleep(1)
-        data = uart.readline()
-        if data != None and len(data)>1:
-            print("UART: rx :", data)
-            if Q_out.full():
-                Q_out.get()
-            Q_out.put(data)
+        time.sleep(0.1)
+        msg = uart.read()
+        if msg:
+            msgl = msg.split(DELIMITER)
+            if len(msgl) == 1:
+                tempBuffer += msg
+            elif len(msgl) > 1:
+                tempBuffer += msgl[0]
+                __addQ(tempBuffer)
+                for t in msgl[1:-1]:
+                    __addQ(t)
+                tempBuffer = msgl[-1]
 
         if (time.time() > oldTimer + 10):
-            msg = "heartbeat "+dev_eui.lower()+"\n"
-            print("UART: tx :", msg)
-            uart.write(msg)
-            oldTimer = time.time()
+            msg = "heartbeat "+dev_eui.lower()
+            print("UART: tx :", msg, "len:", len(msg))
+            __sendU(bytes(msg, 'utf-8'))
             pycom.rgbled(0x111111) # white blinking LED = uart Tx
             time.sleep(0.1)
             pycom.rgbled(0x000000)
+            oldTimer = time.time()
+
 
 ####### MAIN #######
 
 # network output queue
 Q_out = Queue(4)
-
+   
 _thread.start_new_thread(LoRa_service, (Q_out,))
 UART_service(Q_out) # could be in a thread as well
     

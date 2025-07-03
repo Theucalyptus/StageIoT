@@ -40,14 +40,14 @@ def LoRa_service(Q_out, Q_in):
     lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868) # Initialize LoRa in LORAWAN mode.
     lora.join(activation=LoRa.OTAA, auth=(dev_eui_unhex, app_eui_unhex, app_key_unhex), timeout=0) # Start LoRaWA connection
     while not lora.has_joined():        # Waiting on LoRaWAN connectivity
-        Q_in.put('LoRa: not yet joined...\n')
+        Q_in.put('LoRa: not yet joined...')
         pycom.rgbled(0x110A00)          # Blinking orange LED
         time.sleep(0.2)
         pycom.rgbled(0x000000)
         time.sleep(1.8)
 
     # joined
-    Q_in.put('LoRa: up\n')
+    Q_in.put('LoRa: up')
     pycom.rgbled(0x002200)              # Green LED upon succesfull connection
 
 
@@ -65,33 +65,52 @@ def LoRa_service(Q_out, Q_in):
     while True:
         if not Q_out.empty():
             data = Q_out.get()
-            Q_in.put("LoRa: tx :" + str(data) + "\n")
+            Q_in.put("LoRa: tx :" + str(data))
             __send(data)
 
 ####### UART Service #######
 def UART_service(Q_out, Q_in):
+    DELIMITER = bytes('\n\n\n\n', 'utf-8')
+    
     uart = UART(0, baudrate=115200) # default = USB on expansion board
     oldTimer = time.time() # uart heartbeat timer
+   
+    def __sendU(msgBytes):
+        uart.write(msgBytes+DELIMITER)
+    
+    def __addQ(data):
+        if Q_out.full():
+            Q_out.get()
+        Q_out.put(data)
+        __sendU(data) ## ECHO
+
+    tempBuffer = b''
     while True:
-        time.sleep(1)
-        data = uart.readline()
-        if data != None and len(data)>1:
-            Q_in.put("UART: rx : " + str(data) + "\n")
-            if Q_out.full():
-                Q_out.get()
-            Q_out.put(data)
+        time.sleep(0.1)
+        msg = uart.read()
+        if msg:
+            msgl = msg.split(DELIMITER)
+            if len(msgl) == 1:
+                tempBuffer += msg
+            elif len(msgl) > 1:
+                tempBuffer += msgl[0]
+                __addQ(tempBuffer)
+                for t in msgl[1:-1]:
+                    __addQ(t)
+                tempBuffer = msgl[-1]
 
         if not Q_in.empty():
             msg = Q_in.get()
-            uart.write(msg)
+            __sendU(bytes(msg, "utf-8"))
 
         if (time.time() > oldTimer + 10):
-            msg = "heartbeat "+dev_eui.lower()+"\n"
-            uart.write(msg)
-            oldTimer = time.time()
+            msg = "heartbeat "+dev_eui.lower()
+            __sendU(bytes(msg, 'utf-8'))
             pycom.rgbled(0x111111) # white blinking LED = uart Tx
             time.sleep(0.1)
             pycom.rgbled(0x000000)
+            oldTimer = time.time()
+
 
 ####### MAIN #######
 

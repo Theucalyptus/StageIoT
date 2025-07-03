@@ -18,6 +18,8 @@ TIMEGAP = 0 # difference between client local time and server time (approx)
 
 class UartService:
 
+    DELIMITER = bytes('\n\n\n\n', 'utf-8')
+
     def __init__(self, q_in, q_out):
         global config
         device = config.get('network.uart', 'device')
@@ -27,7 +29,7 @@ class UartService:
 
         logger.info("uart setup using device " + device + " bauds " + str(speed))
         self.serial = serial.Serial(device, speed)
-        self.outBuffer = ""
+        self.outBuffer = b''
         self.q_in = q_in
         self.q_out = q_out
         self.isUp = True # for LoRa, we don't really have a way to check  if the device has connectivity
@@ -47,26 +49,25 @@ class UartService:
     def __send(self, msg):
         logger.info("uart sending " + str(msg))
         try:
-            self.serial.write(lora.data_to_lora(msg))
+            data = lora.data_to_lora(msg)
+            #logger.info("uart sending " + str(data))
+            self.serial.write(data + UartService.DELIMITER)
         except lora.MissingDataField:
             logger.error("uart lora serializer failed with missing data (can happen before all sensors provided their first sample)")
     def __recv(self):
-        try:
-            msg = self.serial.read_all().decode("utf-8")
-            if msg:
-                msgl = msg.split('\n')
-                if len(msgl) == 1:
-                    self.outBuffer += msg
-                elif len(msgl) > 1:
-                    self.outBuffer += msgl[0]
-                    logger.info("uart received " + self.outBuffer)
-                    self.q_out.put(self.outBuffer)
-                    for t in msgl[1:-1]:
-                        logger.info("uart received " + t)
-                        self.q_out.put(t)
-                    self.outBuffer = msgl[-1]
-        except UnicodeDecodeError as e:
-            logger.warning('uart message invalid ' + str(e))
+        msg = self.serial.read_all()
+        if msg:
+            msgl = msg.split(UartService.DELIMITER)
+            if len(msgl) == 1:
+                self.outBuffer += msg
+            elif len(msgl) > 1:
+                self.outBuffer += msgl[0]
+                logger.info("uart received " + str(self.outBuffer))
+                self.q_out.put(str(self.outBuffer))
+                for t in msgl[1:-1]:
+                    logger.info("uart received " + str(t))
+                    self.q_out.put(str(t))
+                self.outBuffer = msgl[-1]
 
     def getNearbyObjects(self):
         """ Returns a list of nearby objects detected by the device.

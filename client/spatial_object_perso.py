@@ -6,8 +6,10 @@ from queue import Queue
 import json
 import time
 import sensors
-
 import cv2, depthai as dai, numpy as np    # ← ton module
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEBUG_UI=True
 
@@ -127,85 +129,89 @@ class Camera:
         next_id = 0
         tracked = {}      # id -> Tracked
 
-        with dai.Device(pipe, maxUsbSpeed=dai.UsbSpeed.HIGH) as dev:
-            q_rgb = dev.getOutputQueue("rgb",4,False)
-            q_det = dev.getOutputQueue("det",4,False)
+        try:
+            with dai.Device(pipe, maxUsbSpeed=dai.UsbSpeed.HIGH) as dev:
+                q_rgb = dev.getOutputQueue("rgb",4,False)
+                q_det = dev.getOutputQueue("det",4,False)
 
-            t_last_send = time.time()
+                t_last_send = time.time()
 
-            while not self.stopVar:
-                rgb_msg = q_rgb.tryGet()
-                det_msg = q_det.tryGet()
-                if rgb_msg is None or det_msg is None:
-                    time.sleep(0.002)
-                    continue
+                while not self.stopVar:
+                    rgb_msg = q_rgb.tryGet()
+                    det_msg = q_det.tryGet()
+                    if rgb_msg is None or det_msg is None:
+                        time.sleep(0.002)
+                        continue
 
-                frame = rgb_msg.getCvFrame()
-                detections = det_msg.detections
-                H,W = frame.shape[:2]
-                now = time.time()
+                    frame = rgb_msg.getCvFrame()
+                    detections = det_msg.detections
+                    H,W = frame.shape[:2]
+                    now = time.time()
 
-                # --------- association bbox -> tracked --------------------
-                matched_ids = set()
-                for d in detections:
-                    label = LABELS[d.label] if d.label < len(LABELS) else str(d.label)
-                    cx = int((d.xmin + d.xmax) / 2 * W)
-                    cy = int((d.ymin + d.ymax) / 2 * H)
-                    xyz = (d.spatialCoordinates.x, d.spatialCoordinates.y, d.spatialCoordinates.z)
+                    # --------- association bbox -> tracked --------------------
+                    matched_ids = set()
+                    for d in detections:
+                        label = LABELS[d.label] if d.label < len(LABELS) else str(d.label)
+                        cx = int((d.xmin + d.xmax) / 2 * W)
+                        cy = int((d.ymin + d.ymax) / 2 * H)
+                        xyz = (d.spatialCoordinates.x, d.spatialCoordinates.y, d.spatialCoordinates.z)
 
-                    # cherche le tracked du même label le plus proche
-                    best, best_dist = None, 1e9
-                    for tr in tracked.values():
-                        if tr.label == label:
-                            dist = math.hypot(cx - tr.cx, cy - tr.cy)
-                            if dist < best_dist:
-                                best, best_dist = tr, dist
-                    
-                    if best and best_dist < PIX_MATCH_RADIUS:
-                        best.update(cx, cy, xyz)
-                        matched_ids.add(best.id)
-                        trk = best
-                        #print(f"[UPDATE] Objet ID {trk.id} ({label}) mis à jour à ({cx}, {cy})")
-                    else:
-                        trk = Tracked(next_id, label, cx, cy, xyz)
-                        tracked[next_id] = trk
-                        matched_ids.add(next_id)
-                        #print(f"[NOUVEAU] Objet ID {next_id} ({label}) détecté à ({cx}, {cy})")
-                        next_id += 1
+                        # cherche le tracked du même label le plus proche
+                        best, best_dist = None, 1e9
+                        for tr in tracked.values():
+                            if tr.label == label:
+                                dist = math.hypot(cx - tr.cx, cy - tr.cy)
+                                if dist < best_dist:
+                                    best, best_dist = tr, dist
+                        
+                        if best and best_dist < PIX_MATCH_RADIUS:
+                            best.update(cx, cy, xyz)
+                            matched_ids.add(best.id)
+                            trk = best
+                            #print(f"[UPDATE] Objet ID {trk.id} ({label}) mis à jour à ({cx}, {cy})")
+                        else:
+                            trk = Tracked(next_id, label, cx, cy, xyz)
+                            tracked[next_id] = trk
+                            matched_ids.add(next_id)
+                            #print(f"[NOUVEAU] Objet ID {next_id} ({label}) détecté à ({cx}, {cy})")
+                            next_id += 1
+
+                        if DEBUG_UI:
+                            # dessin debug
+                            x1,y1 = int(d.xmin*W), int(d.ymin*H)
+                            x2,y2 = int(d.xmax*W), int(d.ymax*H)
+                            cv2.rectangle(frame,(x1,y1),(x2,y2),(255,0,0),1)
+                            cv2.putText(frame,f"ID {trk.id} d{trk.xyz[2]}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
+                            cv2.putText(frame,label,(x1,y1+14),cv2.FONT_HERSHEY_SIMPLEX,0.5,255)
+
+                    # --------- purge des perdus --------------------------------
+                    for oid in list(tracked):
+                        if now - tracked[oid].last_seen > LOST_TIMEOUT:
+                            tracked.pop(oid)
+
+                    # --------- envoi groupé périodique -------------------------
+                    if now - t_last_send >= SEND_PERIOD:
+                        
+                        for tr in tracked.values():
+                            if tr.label in IMPORTANT and tr.moved_enough():
+                                x,y,z = tr.xyz
+                                #payload += f"{tr.id:<3},{int(x):<6},{int(y):<6},{int(z):<6},{tr.label:<10};"
+                                tr.last_sent_cxy = (tr.cx, tr.cy)
+                        
+                        if len(tracked.values()) > 0:
+                            obj_data_msg = construire_msg(tracked.values(), self.latitude, self.longitude, self.azimuth)
+                            print("envoi de données objets", obj_data_msg)
+                            Q_out.put(obj_data_msg)
+                            t_last_send = now
 
                     if DEBUG_UI:
-                        # dessin debug
-                        x1,y1 = int(d.xmin*W), int(d.ymin*H)
-                        x2,y2 = int(d.xmax*W), int(d.ymax*H)
-                        cv2.rectangle(frame,(x1,y1),(x2,y2),(255,0,0),1)
-                        cv2.putText(frame,f"ID {trk.id} d{trk.xyz[2]}", (x1,y1-4), cv2.FONT_HERSHEY_SIMPLEX,0.45,(0,255,0))
-                        cv2.putText(frame,label,(x1,y1+14),cv2.FONT_HERSHEY_SIMPLEX,0.5,255)
-
-                # --------- purge des perdus --------------------------------
-                for oid in list(tracked):
-                    if now - tracked[oid].last_seen > LOST_TIMEOUT:
-                        tracked.pop(oid)
-
-                # --------- envoi groupé périodique -------------------------
-                if now - t_last_send >= SEND_PERIOD:
-                    
-                    for tr in tracked.values():
-                        if tr.label in IMPORTANT and tr.moved_enough():
-                            x,y,z = tr.xyz
-                            #payload += f"{tr.id:<3},{int(x):<6},{int(y):<6},{int(z):<6},{tr.label:<10};"
-                            tr.last_sent_cxy = (tr.cx, tr.cy)
-                    
-                    if len(tracked.values()) > 0:
-                        obj_data_msg = construire_msg(tracked.values(), self.latitude, self.longitude, self.azimuth)
-                        print("envoi de données objets", obj_data_msg)
-                        Q_out.put(obj_data_msg)
-                        t_last_send = now
-
-                if DEBUG_UI:
-                    cv2.imshow("preview", frame)
-                    if cv2.waitKey(1) == ord('q'):
-                        break
-
+                        cv2.imshow("preview", frame)
+                        if cv2.waitKey(1) == ord('q'):
+                            break
+        except ConnectionError:
+            logger.error("Failed to connect with the camera. Please check that the camera is properly plugged-in and restart the program, or disable it in the configuration.")
+            logger.info("The program will continue but object detection will not function.")
+        
 # --------------- main thread -----------------------------------------------
 if __name__ == "__main__":
     q = Queue()
