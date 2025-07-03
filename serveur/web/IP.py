@@ -166,8 +166,8 @@ def __getNearbyObjects(deviceid, seuil):
 
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
-    latitude, longitude = __getDeviceLatestLocation(deviceid)
     try:
+        latitude, longitude = __getDeviceLatestLocation(deviceid)
         # Récupération de la liste des appareils dans le périmètre
         neighbours = []
         for device in __queryAllDeviceIDs():
@@ -202,7 +202,7 @@ def __getNearbyObjects(deviceid, seuil):
         return objects, distances
     
     except NoLocationDataException:
-        print("called __getNearbyObjects for device", deviceid, seuil, "but no known location.")
+        print(deviceid, "has no known live-location (in cache, not DB).")
         return {}, {}
 
 def __queryUserDeviceList(username):
