@@ -189,13 +189,15 @@ def __getNearbyObjects(deviceid, seuil):
         for neighbour in neighbours:
             if neighbour in objects_storage:
                 temp = objects_storage[neighbour]
-                objects[neighbour] = temp
-                distances[neighbour] = {}
-                for (objId, objData) in temp.items():
+                objects[neighbour] = []
+                distances[neighbour] = []
+                for (_, objData) in temp.items():
                     distance = calculate_distance(latitude, longitude, objData['latitude'], objData['longitude'])
-                    distances[neighbour][objId] = distance
-            else:
-                print("no objects close enough for neighbour", neighbour)
+                    if distance < seuil:
+                        objects[neighbour].append(objData)
+                        distances[neighbour].append(distance)
+            # else:
+            #     print("no objects close enough for neighbour", neighbour)
 
         return objects, distances
     

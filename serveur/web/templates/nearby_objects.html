@@ -60,26 +60,22 @@
     <p>This page displays the details of all objects/obstacles reported by other devices in a given perimeter.</p>
     <form method="get">
         <label for="size">Distance (max):</label>
-        <input type="number" id="size" name="size">
+        <input type="number" id="size" name="size" value="100">
         <button type="submit">OK</button>
     </form>
     
-
+    <br>
     {% if data %}
         <ul>
         {% for device, objects in data.items() %}
             {% set distance = distances[device] %}
-            <div>
-                <div id="objectsContainer"> <h5>Objects seen by : {{ device }}</h5>
-                    <div id="objectsContainer">
+                <div id="objectsContainer"> <h5 style="margin-bottom: 1rem;">Objects seen by : {{ device }}</h5>
                         <ul>
-                        {% for objId, obj in objects.items() %}
-                            <li>ID: {{ obj.id }}  Label: {{ obj.label }} Distance : {{ '{0:0.2f}'.format(distance[objId]) }}m</li>
+                        {% for obj in objects %}
+                            <li>ID: {{ obj.id }}  Label: {{ obj.label }} Distance : {{ '{0:0.2f}'.format(distance[loop.index0]) }}m</li>
                         {% endfor %}
                         </ul>
-                    </div>
                 </div>
-            </div>
         {% endfor %}
         </ul>
     {% else %}

@@ -9,8 +9,6 @@ import requests
 from common.msgTypes import MessageTypes
 from common import lora
 
-db : mysql.connector.MySQLConnection
-db_cursor : mysql.connector.abstracts.MySQLCursorAbstract
 Config = {}
 
 
@@ -25,8 +23,8 @@ def __getSQLDataType(value):
         raise TypeError
 
 def __checkColumnExists(tablename, column):
-    global db, db_cursor
-    c = db_cursor
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
+    c = db.cursor()
     query = "SHOW COLUMNS FROM " + tablename +  " LIKE %s;"
     c.execute(query, (column,))
     r = c.fetchall()
@@ -36,8 +34,8 @@ def __getDeviceIDFromEUI(lora_eui: str):
     if lora_eui == "" or lora_eui == None:
         return None
     
-    global db, db_cursor
-    c = db_cursor
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
+    c = db.cursor()
     query = "SELECT `device-id` FROM Device WHERE `lora-dev-eui` = %s;"
     c.execute(query, (lora_eui.lower().strip(),))
     res = None
@@ -48,9 +46,9 @@ def __getDeviceIDFromEUI(lora_eui: str):
     return res
 
 def save_sample_DB(data):
-    global db, db_cursor
-    c = db_cursor
-    
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
+    c = db.cursor()
+
     try :
         request_type = data.pop('type', None)
         assert(request_type == 1)
@@ -75,14 +73,14 @@ def save_sample_DB(data):
         query += ")"
 
         if query != "":
-            db_cursor.execute(query,data)
+            c.execute(query,data)
             db.commit()               
     except Exception as e :
         print("DB insertion failed with exception", e)
 
 def save_object_DB(object):
-    global db, db_cursor
-    c = db_cursor
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
+    c = db.cursor()
     table = "Objects"
     temp = object.copy()
     temp['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
@@ -177,11 +175,10 @@ def Web_msg_handler(data_sample):
         print("device "+device+" not registered, ignoring.")
     
 def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
-    global db, db_cursor, Config
+    global Config
     print("Starting Interface node")
     Config=Config_
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
-    db_cursor = db.cursor()
+
 
     while True:
         try:

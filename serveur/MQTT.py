@@ -14,8 +14,8 @@ def on_message(client, userdata, msg):
 def on_subscribe(mqttc, obj, mid, granted_qos, arg):
     print("\nSubscribe: " + str(mid) + " " + str(granted_qos))
 
-def on_disconnect(mqttc, userdata, rc):
-    print("\nDisconnect with result code %s", rc)
+def on_disconnect(mqttc, *args):
+    print("\nDisconnect with", *args)
     print("\nTODO: try to reconnect")
 
 def MQTTnode(input,Q_LoRa : Queue):
