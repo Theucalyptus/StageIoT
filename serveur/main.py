@@ -74,7 +74,7 @@ def init_db():
                         
         # Import tables (if they dont exist yet)
         
-        path_setup_DB = os.path.join(__file__.rsplit(os.path.sep, 1)[0], Config['db_init_file']+".sql")
+        path_setup_DB = os.path.join(".", Config['db_init_file']+".sql")
         print("DB setup file path", path_setup_DB)
         sql=open(path_setup_DB, 'r')
         cursor.execute(sql.read())
@@ -94,7 +94,7 @@ def init_config():
     It is not nessecary to enter evey field of the config file as there are default values
     """
 
-    path = os.path.join(__file__.rsplit(os.path.sep, 1)[0], "config.conf")
+    path = os.path.join(".", "config.conf")
     # print(path)
     conf = open(path)
     

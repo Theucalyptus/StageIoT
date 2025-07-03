@@ -1,22 +1,23 @@
 services:
   db:
     container_name: iot-pcd-db
-    image: mysql
+    image: mariadb:11.8.2-noble
     restart: always
     network_mode: host
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: yes 
-      MYSQL_ROOT_PASSWORD:    
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: yes 
+      MARIADB_ROOT_PASSWORD:
     ports:
       - 3306:3306
     volumes:
       - iot_db_data:/var/lib/mysql
     healthcheck:
-        test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-        interval: 10s
+        test: [ "CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized" ]
+        start_period: 1m
+        start_interval: 10s
+        interval: 1m
         timeout: 5s
-        retries: 5
-
+        retries: 3
   wui:
     container_name: iot-pcd-wui
     build:
