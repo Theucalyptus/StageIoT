@@ -129,12 +129,19 @@ def __delete_device(deviceid,username):
     return cond
 
 def __getDeviceLatestLocation(deviceid):
-
+    """
+        Retrieves the latest known location for a device. Search in the cache first, and if not found querry the database.
+        Raises NoLocationDataException if no location could be found.
+    """
 
     if deviceid in data_storage:
-        lat = data_storage[deviceid][-1]["latitude"]
-        long = data_storage[deviceid][-1]["longitude"]
-        return (lat, long)
+        try:
+            lat = data_storage[deviceid][-1]["latitude"]
+            long = data_storage[deviceid][-1]["longitude"]
+            return (lat, long)
+        except KeyError:
+            print(data_storage[deviceid][-1])
+            raise NoLocationDataException
     else:
         db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
         cursor = db.cursor()
@@ -142,7 +149,7 @@ def __getDeviceLatestLocation(deviceid):
         query = "SELECT latitude, longitude FROM {0} ORDER BY id DESC LIMIT 1;".format(deviceid) # could cause some issues if we 
         cursor.execute(query)
         device_location = cursor.fetchone()
-        if device_location == (None, None):
+        if device_location[0] == None or device_location[1] == None:
             raise NoLocationDataException
         return device_location
 
@@ -154,6 +161,9 @@ def __getNearbyObjects(deviceid, seuil):
     - deviceid: str
     - seuil: number: the radius of the search zone
     """
+
+    # TODO: improve this function, as it will most certainly end up being a huge bottleneck when having many clients and objects !!!
+
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     latitude, longitude = __getDeviceLatestLocation(deviceid)
@@ -163,10 +173,12 @@ def __getNearbyObjects(deviceid, seuil):
         for device in __queryAllDeviceIDs():
             if device != deviceid:
                 try:
-                    lat2, long2 = __getDeviceLatestLocation(device)
-                    d = calculate_distance(latitude, longitude, lat2, long2)
+                    # lat2, long2 = __getDeviceLatestLocation(device)
+                    # d = calculate_distance(latitude, longitude, lat2, long2)
+                    d = 0
                     if d < seuil:
                         neighbours.append(device)
+
                 except NoLocationDataException:
                     pass #if __getDeviceLatestLocation failed, because we don't have any location data yet
 
