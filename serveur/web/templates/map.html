@@ -93,38 +93,47 @@
                 .then(response => response.json())
                 .then(data => {
                     for(device in data){
-                        const { name, latitude, longitude, timestamp } = data[device];
-                        const deviceid = data[device]['device-id']
-                        if (!markers[deviceid]) {
-                            markers[deviceid] = L.marker([latitude, longitude]).addTo(map);
-                        }else{
-                            markers[deviceid].setLatLng([latitude, longitude]);
-                        }
-                        let additionalInfo = "";
-                        fetch('/api/getObject/'+deviceid)
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data) {
-                                    additionalInfo = '<b> Objects:</b><br>' + data.map(obj => `${obj.label.trim()} (ID: ${obj.id}), ${haversine(obj.latitude, obj.longitude, latitude, longitude)} m`).join('<br>');
-                                    data.forEach(obj => {
-                                        const id_temp = obj.id;
-                                        if(!object_markers[id_temp]){
-                                            objectIcon = getColorforDeviceObj(deviceid)
-                                            m = L.marker([obj.latitude, obj.longitude], {icon: objectIcon}).addTo(map);
-                                            object_markers[id_temp] = m;
-                                            m.bindPopup('<b> Object : ' +obj.label+ ` (ID: ${obj.id})</b></br>Reported by : `+ name);
-                                        }else{
-                                            object_markers[id_temp].setLatLng([obj.latitude, obj.longitude]);
-                                        }
-                                        
-                                    });
+                        try {
+                            const { name, latitude, longitude, timestamp } = data[device];
+                            
+                            const deviceid = data[device]['device-id']                         
+                            if (latitude != null && longitude != null) {
+                                if (!markers[deviceid]) {
+                                    markers[deviceid] = L.marker([latitude, longitude]).addTo(map);
+                                }else{
+                                    markers[deviceid].setLatLng([latitude, longitude]);
                                 }
-                            })
-                            .catch(error => console.error('Error fetching objects:', error))
-                            .then(() => {                            
-                                markers[deviceid].unbindPopup();
-                                markers[deviceid].bindPopup("<b> Device : "+name + " - " + deviceid+"</b><br>Latitude : "+latitude+ "<br>Longitude : "+ longitude + 
-                            "<br>Last updated : " + new Date(timestamp*1000) + `<br>${additionalInfo}`);})
+                            }
+                            let additionalInfo = "";
+                            fetch('/api/getObject/'+deviceid)
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data) {
+                                        additionalInfo = '<b> Objects:</b><br>' + data.map(obj => `${obj.label.trim()} (ID: ${obj.id}), ${haversine(obj.latitude, obj.longitude, latitude, longitude)} m`).join('<br>');
+                                        data.forEach(obj => {
+                                            const id_temp = obj.id;
+                                            if(!object_markers[id_temp]){
+                                                objectIcon = getColorforDeviceObj(deviceid)
+                                                m = L.marker([obj.latitude, obj.longitude], {icon: objectIcon}).addTo(map);
+                                                object_markers[id_temp] = m;
+                                                m.bindPopup('<b> Object : ' +obj.label+ ` (ID: ${obj.id})</b></br>Reported by : `+ name);
+                                            }else{
+                                                object_markers[id_temp].setLatLng([obj.latitude, obj.longitude]);
+                                            }
+                                            
+                                        });
+                                    }
+                                })
+                                .catch(error => console.error('Error fetching objects:', error))
+                                .then(() => {                            
+                                    if(markers[deviceid]) {
+                                        markers[deviceid].unbindPopup();
+                                        markers[deviceid].bindPopup("<b> Device : "+name + " - " + deviceid+"</b><br>Latitude : "+latitude+ "<br>Longitude : "+ longitude + "<br>Last updated : " + new Date(timestamp*1000) + `<br>${additionalInfo}`);}
+                                    })
+                                    
+                        } catch (error) {
+                            console.log("updateUserPositions failed for device", device, "with error", error)
+                        }
                     };
                     document.getElementById("update-msg").innerHTML = "Last updated " + new Date()
                 })
