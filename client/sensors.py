@@ -101,7 +101,7 @@ class Phone(Sensor):
                     websocket.send(data)
                 try:
                     data = websocket.recv(timeout=0)
-                    logger.info("received " + str(data))
+                    #logger.info("received " + str(data))
                     try:
                         deserialized = json.loads(data)
                         self.newSampleHandler(deserialized)

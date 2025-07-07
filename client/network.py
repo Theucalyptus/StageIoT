@@ -20,6 +20,8 @@ class UartService:
 
     DELIMITER = bytes('\n\n\n\n', 'utf-8')
 
+    time_between_send = config.getint('network.uart', 'time_between_send')
+
     def __init__(self, q_in, q_out):
         global config
         device = config.get('network.uart', 'device')
@@ -92,6 +94,9 @@ class HTTPService:
 
     timeout = config.getint('network.http', 'timeout')
 
+    time_between_send = config.getint('network.http', 'time_between_send')
+
+
     def __init__(self, q_in, q_out):
 
         self.q_in = q_in
@@ -153,6 +158,7 @@ class HTTPService:
                 logger.warning("http received unexpected status code " + str(r.status_code))
         except ConnectionError as e:
             logger.error("http receive failed: " + str(e))
+            self.isUp = False
 
     def stop(self):
         self.stopVar = True

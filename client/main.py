@@ -75,20 +75,27 @@ message = {'device-id':config.get('general', 'device_id'), 'type':1}
 exit = False
 
 def __sendWorker():
+
+    waitTime = MAIN_NET.time_between_send
+    if ALT_NET:
+        waitTime = min(MAIN_NET.time_between_send, ALT_NET.time_between_send)
+
     global exit
     while not exit:
-        waitTime = float(config.get('network', 'time_between_send'))
+        lastSendTime = time.time()
         time.sleep(waitTime)
-        lastSent = {}
-        
+        lastSentData = {}
         # only send a new status update if latest sensor data changed (except timestamp)
-        if lastSent != message:
-            message['timestamp'] = time.time()
-            lastSent = message.copy()
-            if MAIN_NET.isUp:
-                q_netMain_in.put(lastSent)
-            elif ALT_NET != None and ALT_NET.isUp:
-                q_netAlt_in.put(lastSent)
+        if lastSentData != message:
+            now = time.time() 
+            message['timestamp'] = now
+            lastSentData = message.copy()
+            if MAIN_NET.isUp and now >= lastSendTime+MAIN_NET.time_between_send-1:
+                q_netMain_in.put(lastSentData)
+                lastSendTime = now
+            elif ALT_NET != None and ALT_NET.isUp and now >= lastSendTime+ALT_NET.time_between_send-1:
+                q_netAlt_in.put(lastSentData)
+                lastSendTime = now
             else:
                 logger.info("all networks are down. the data is still logged localy.")
 

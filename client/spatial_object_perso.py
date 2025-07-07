@@ -208,7 +208,7 @@ class Camera:
                         cv2.imshow("preview", frame)
                         if cv2.waitKey(1) == ord('q'):
                             break
-        except ConnectionError:
+        except (ConnectionError, RuntimeError):
             logger.error("Failed to connect with the camera. Please check that the camera is properly plugged-in and restart the program, or disable it in the configuration.")
             logger.info("The program will continue but object detection will not function.")
         

@@ -32,6 +32,8 @@ def __checkColumnExists(c, tablename, column):
     return len(r)>= 1
 
 def __getDeviceIDFromEUI(lora_eui: str):
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+
     if lora_eui == "" or lora_eui == None:
         return None
     
