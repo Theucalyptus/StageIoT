@@ -128,7 +128,7 @@ def __delete_device(deviceid,username):
     db.commit()
     return cond
 
-def __getDeviceLatestLocation(deviceid):
+def __getDeviceLatestLocation(cursor, deviceid):
     """
         Retrieves the latest known location for a device. Search in the cache first, and if not found querry the database.
         Raises NoLocationDataException if no location could be found.
@@ -143,9 +143,6 @@ def __getDeviceLatestLocation(deviceid):
             print(data_storage[deviceid][-1])
             raise NoLocationDataException
     else:
-        db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-        cursor = db.cursor()
-
         query = "SELECT latitude, longitude FROM {0} ORDER BY id DESC LIMIT 1;".format(deviceid) # could cause some issues if we 
         cursor.execute(query)
         device_location = cursor.fetchone()
@@ -168,13 +165,13 @@ def __getNearbyObjects(deviceid, seuil):
     #cursor = db.cursor()
     
     try:
-        latitude, longitude = __getDeviceLatestLocation(deviceid)
+        latitude, longitude = __getDeviceLatestLocation(cursor, deviceid)
         # Récupération de la liste des appareils dans le périmètre
         neighbours = []
         for device in __queryAllDeviceIDs():
             if device != deviceid:
                 try:
-                    # lat2, long2 = __getDeviceLatestLocation(device)
+                    # lat2, long2 = __getDeviceLatestLocation(cursor, device)
                     # d = calculate_distance(latitude, longitude, lat2, long2)
                     d = 0
                     if d < seuil:
@@ -386,27 +383,26 @@ def post_data():
             data = json.loads(raw_data)
             if data['type'] == MessageTypes.DEVICE_UPDATE:
                 # device status update
-                Q_out.put(data.copy())
+                Q_out.put(data.copy()) #copy because we edit the message before DB insertion
                 add_data_to_cache(data)
             elif data['type'] == MessageTypes.OBJECT_REPORT:
                 # object observation
                 for object in data['objects']:
-                    oTemp = object.copy()
-                    oTemp["tempId"] = oTemp.pop("id") # move id as temp id
-                    oTemp["timestamp"]=data['timestamp']
-                    oTemp['seenby']=data['device-id']
+                    object["tempId"] = object.pop("id") # move id as temp id
+                    object["timestamp"]=data['timestamp']
+                    object['seenby']=data['device-id']
                     if data['device-id'] in objects_storage:
-                        if oTemp["tempId"] in objects_storage[data['device-id']]:
-                            oTemp["id"] = objects_storage[data['device-id']][oTemp["tempId"]]["id"]
+                        if object["tempId"] in objects_storage[data['device-id']]:
+                            object["id"] = objects_storage[data['device-id']][object["tempId"]]["id"]
                     # Ajouter les données à la base de données, donne un Id permanent si pas déjà connu
-                    Interface.save_object_DB(oTemp)
-                    if not "id" in oTemp:
+                    Interface.save_object_DB(object)
+                    if not "id" in object:
                         return jsonify({"status": "error", "message": "Unknown/Unregistered device"}), 200
                     # Ajouter les données à la liste d'objets
                     if data['device-id'] in objects_storage:
-                        objects_storage[data['device-id']][oTemp['tempId']] = oTemp
+                        objects_storage[data['device-id']][object['tempId']] = object
                     else:
-                        objects_storage[data['device-id']] = {oTemp['tempId']:oTemp}
+                        objects_storage[data['device-id']] = {object['tempId']:object}
             else:
                 logging.error("Not Implemented message type " + str(data['type']))
 
@@ -861,11 +857,6 @@ def register_device():
         A redirect response to the 'register_device' page.
 
     """
-
-    # Connexion à la base de données
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-
 
     form_associate = DeviceAssociationForm()
     # Vérifier si le formulaire a été soumis et validé

@@ -11,6 +11,9 @@ from common import lora
 
 Config = {}
 
+# long-lived DB connction, one per thread
+db1, c1 = None, None # for data sample (used by Web_msg_handler & save_sample_DB)
+db2, c2 = None, None # for objects 
 
 def __getSQLDataType(value):
     if type(value) == int:
@@ -22,9 +25,7 @@ def __getSQLDataType(value):
     else:
         raise TypeError
 
-def __checkColumnExists(tablename, column):
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
-    c = db.cursor()
+def __checkColumnExists(c, tablename, column):
     query = "SHOW COLUMNS FROM " + tablename +  " LIKE %s;"
     c.execute(query, (column,))
     r = c.fetchall()
@@ -34,7 +35,6 @@ def __getDeviceIDFromEUI(lora_eui: str):
     if lora_eui == "" or lora_eui == None:
         return None
     
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
     c = db.cursor()
     query = "SELECT `device-id` FROM Device WHERE `lora-dev-eui` = %s;"
     c.execute(query, (lora_eui.lower().strip(),))
@@ -46,8 +46,8 @@ def __getDeviceIDFromEUI(lora_eui: str):
     return res
 
 def save_sample_DB(data):
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
-    c = db.cursor()
+    db = db1 #mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    c = c1 #db.cursor()
 
     try :
         request_type = data.pop('type', None)
@@ -56,7 +56,7 @@ def save_sample_DB(data):
         data['timestamp']=datetime.datetime.fromtimestamp(data['timestamp'])
         for field in data.keys():
             if field != "timestamp":
-                if not __checkColumnExists(deviceid, field):
+                if not __checkColumnExists(c, deviceid, field):
                     add_col_query = "ALTER TABLE " + deviceid + " ADD COLUMN "+ field + " " + str(__getSQLDataType(data[field])) + " DEFAULT NULL;"
                     c.execute(add_col_query, ())
                 db.commit()               
@@ -79,8 +79,10 @@ def save_sample_DB(data):
         print("DB insertion failed with exception", e)
 
 def save_object_DB(object):
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"], autocommit=True)
-    c = db.cursor()
+    db = db2
+    db.ping(reconnect=True)
+    c = c2
+
     table = "Objects"
     temp = object.copy()
     temp['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
@@ -159,10 +161,10 @@ def LoRa_msg_handler(msg):
         print("ERROR", msg.payload, e)
 
 def Web_msg_handler(data_sample):
-  
-    
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor=db.cursor()
+    global db1, c1
+    cursor= c1
+
+    db1.ping(reconnect=True) # keep the connection alive
 
     # check if the device exists
     device = data_sample["device-id"]
@@ -175,10 +177,17 @@ def Web_msg_handler(data_sample):
         print("device "+device+" not registered, ignoring.")
     
 def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
-    global Config
+    global Config, db1, c1, db2, c2
     print("Starting Interface node")
     Config=Config_
+    
+    # for use by save sample (1 thread only so OK)
+    db1 = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    c1 = db1.cursor()
 
+    # for use by object save (called from flask request handlers, 1 at a time at most, because flask is monothreaded)
+    db2 = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    c2 = db2.cursor()
 
     while True:
         try:
