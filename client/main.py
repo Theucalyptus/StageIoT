@@ -93,9 +93,12 @@ def __sendWorker():
             if MAIN_NET.isUp and now >= lastSendTime+MAIN_NET.time_between_send-1:
                 q_netMain_in.put(lastSentData)
                 lastSendTime = now
-            elif ALT_NET != None and ALT_NET.isUp and now >= lastSendTime+ALT_NET.time_between_send-1:
-                q_netAlt_in.put(lastSentData)
-                lastSendTime = now
+            elif ALT_NET != None and ALT_NET.isUp:
+                if now >= lastSendTime+ALT_NET.time_between_send-1:
+                    q_netAlt_in.put(lastSentData)
+                    lastSendTime = now
+                else:
+                    pass
             else:
                 logger.info("all networks are down. the data is still logged localy.")
 
@@ -112,6 +115,8 @@ t.start()
 def stop(*args):
     logger.info("Graceful exit. Stopping all workers and saving data (can take a few seconds)")
     global exit
+    if exit:
+        return # function was already called.
     exit = True
     for sensor in sensorsList:
         logger.debug("waiting for sensor " + sensor.name + " to stop...")

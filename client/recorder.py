@@ -1,16 +1,31 @@
-from os.path import isfile, isdir
+from os.path import isfile, isdir, join
 from os import makedirs
 from datetime import datetime
 import csv
 import logging
-
+from config import config
 
 logger = logging.getLogger(__name__)
+
+
+class NullWriter:
+
+    def __init__(self):
+        pass
+    
+    def prepare(self, dataFields):
+        pass
+    
+    def saveSample(self, sample):
+        pass
+    
+    def end(self):
+        pass
 
 class CSVWriter:
 
 
-    SAVE_LOCATION = "logs/"
+    SAVE_LOCATION = config.get('general', 'logsPath')
 
     def __init__(self, sensorName):
         if not isdir(CSVWriter.SAVE_LOCATION):
@@ -23,7 +38,7 @@ class CSVWriter:
 
     def __getOutFileName(self, sensorName):
         ext = ".csv"
-        temp = CSVWriter.SAVE_LOCATION + datetime.now().strftime("%Y-%m-%d-%H-%M")+ "_"+sensorName    
+        temp = join(CSVWriter.SAVE_LOCATION, datetime.now().strftime("%Y-%m-%d-%H-%M")+ "_"+sensorName) 
         temp2 = temp + ext
         counter=0
         while isfile(temp2):

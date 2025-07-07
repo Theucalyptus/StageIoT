@@ -161,8 +161,8 @@ def __getNearbyObjects(deviceid, seuil):
 
     # TODO: improve this function, as it will most certainly end up being a huge bottleneck when having many clients and objects !!!
 
-    #db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    #cursor = db.cursor()
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
     
     try:
         latitude, longitude = __getDeviceLatestLocation(cursor, deviceid)

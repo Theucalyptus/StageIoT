@@ -11,7 +11,7 @@ from config import config
 from websockets.sync.server import serve
 from websockets.exceptions import *
 from buffer import Buffer
-from recorder import CSVWriter
+from recorder import CSVWriter, NullWriter, DBWriter
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class  NoSampleAvailable(Exception):
 
 class Sensor:
     
-    def __init__(self, name, dataRecorder):
+    def __init__(self, name, dataRecorder=NullWriter):
         self.name = name
         self.data = {}
         self.data.setdefault("timestamp", 0)
@@ -73,8 +73,13 @@ class Phone(Sensor):
 
     PORT = 6789
 
-    def __init__(self, Q_in, Q_out, name="phone", dataRecorder=CSVWriter):
-        super().__init__(name, dataRecorder)
+
+
+    def __init__(self, Q_in, Q_out, name="phone"):
+        if config.getboolean('sensors.phone', 'logData'):
+            super().__init__(name, dataRecorder=CSVWriter)
+        else:
+            super().__init__(name)
         self.q_in = Q_in
         self.q_out = Q_out
         self.__registerDataFields()
@@ -135,8 +140,12 @@ class Phone(Sensor):
 
 class CANBus(Sensor):
 
-    def __init__(self, Q_out, name="canbus", dataRecorder=CSVWriter):
-        super().__init__(name, dataRecorder)
+    def __init__(self, Q_out, name="canbus"):
+        if config.getboolean('sensors.canbus', 'logData'):
+            super().__init__(name, dataRecorder=CSVWriter)
+        else:
+            super().__init__(name)
+        
         self.q_out = Q_out
         
         interface = config.get('sensors.canbus', 'interface')
