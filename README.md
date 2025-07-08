@@ -43,12 +43,13 @@ The client allows for two networks to be used: one main and a backup/alternative
 
 ## Usage
 ### Data Collection Server & Web App Interaface
-#### With Docker Compose
+#### Run the Code
+##### With Docker Compose
 Docker images for both the mySQL database and the webapp itself are provided, and can be easily deployed using docker compose. The following script does it for you:
 ```bash
     ./launch-server.sh
 ```
-#### Manually
+##### Manually
 - Have mySQL/mariaDB installed and configured (see below); Python version >=3.10
 - In the server's directory, do the following:
     - Create a python virtal environment (venv): `python -m venv <path to venv>`, and active it, ie `source <path to venv>/bin/activate`
@@ -66,6 +67,10 @@ Command-line usage example, with HTTPie:
 # get request
 http <url>/api/deviceData/<deviceid> key==<your api key> start_date=="2025-01-01 00:00:00"
 ```
+
+#### Web UI     
+- Map: on the map users can see the locations of devices and objects. Blue markers are devices, and others colors represent objects, each color being associated on device (i.e all objects markers of the same color are objects see by the same device)
+- 
 
 ### Client
 The client is indented to be used on an mobile/embedded computer, like a NVidia Jetson or a Raspberry Pi. It collectes data from sensors, logs the data locally and periodicaly sends it over the network.

@@ -161,6 +161,8 @@ def __getNearbyObjects(deviceid, seuil):
 
     # TODO: improve this function, as it will most certainly end up being a huge bottleneck when having many clients and objects !!!
 
+    __refreshObjectCache()
+
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     cursor = db.cursor()
     
@@ -189,6 +191,7 @@ def __getNearbyObjects(deviceid, seuil):
                 temp = objects_storage[neighbour]
                 objects[neighbour] = []
                 distances[neighbour] = []
+                now = time.time()
                 for (_, objData) in temp.items():
                     distance = calculate_distance(latitude, longitude, objData['latitude'], objData['longitude'])
                     if distance < seuil:
@@ -250,6 +253,31 @@ def __queryAllDeviceIDs():
 
     return devlist
 
+lastRefresh = None
+def __refreshObjectCache():
+    """
+        Remove from cache all objects whose last update was more than OBJECT_PERSISTANCE seconds ago.
+    """
+    # OBJECT PERSISTANCE
+    OBJECT_PERSISTANCE = 15
+    now = time.time()
+    if lastRefresh and lastRefresh + 1 < now:
+        try:
+            for device in __queryAllDeviceIDs():
+                if device in objects_storage:
+                    toRemove = []
+                    objs = objects_storage[device]
+                    for (k, data) in objs.items():    
+                        if data['timestamp'] + OBJECT_PERSISTANCE < now:
+                            toRemove.append(k)
+                    for k in toRemove:
+                        print("deveice", device, "object", k, "remove from cache due to lack of update")
+                        objs.pop(k)
+        except (RuntimeError):
+            logging.error("FIXME: __refreshObjectCache not thread safe (dictionnary changed size during iteration) when multiple http requests call simultaneously")
+    else:
+        # last refresh was less than 1 second ago, continue
+        pass
 
 ## AUTHENTICATION
 
@@ -364,6 +392,7 @@ def accueil():
 
 @app.route('/objects', methods=['GET', 'POST'])
 def objects():
+    print("TODO endpoint objects")
     return render_template('objects.html')
 
 @app.route('/connectivityCheck', methods=['GET'])
@@ -1283,6 +1312,8 @@ def apiGetObject(deviceid):
             The JSON response contains the object if found, otherwise an error message.
             The HTTP status code is 200 if the object is found, otherwise 404.
     """
+
+    __refreshObjectCache()
 
     if deviceid in objects_storage:
         return jsonify(list(objects_storage[deviceid].values())), 200

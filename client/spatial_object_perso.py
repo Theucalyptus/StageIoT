@@ -17,7 +17,7 @@ DEBUG_UI=True
 PIX_MATCH_RADIUS   = 60    # px  – distance max centre‑à‑centre pour dire « même objet »
 PIX_SEND_THRESHOLD = 40    # px  – déplacement min avant de ré‑émettre
 LOST_TIMEOUT       = 2.0   # s   – purge si plus vu depuis X sec
-SEND_PERIOD        = 5.0   # s   – cadence d’envoi
+SEND_PERIOD        = 1.0   # s   – cadence d’envoi
 
 # ---------- 2. Objet suivi -------------------------------------------------
 class Tracked:
@@ -45,15 +45,38 @@ def get_latitude_longitude(lat, long, azimuthDeg, z, x):
     """
     Returns the latitude and longitude of the object, based on the azimuth and relative coordinates of the camera
     """
+    
+    def calculate_distance(lat1, lon1, lat2, lon2):
+        # Rayon de la Terre en kilomètres
+        R = 6371000
+
+        # Convertir les degrés en radians
+        lat1_rad = math.radians(lat1)
+        lon1_rad = math.radians(lon1)
+        lat2_rad = math.radians(lat2)
+        lon2_rad = math.radians(lon2)
+
+        # Différences des coordonnées
+        dlat = lat2_rad - lat1_rad
+        dlon = lon2_rad - lon1_rad
+
+        # Formule de Haversine
+        a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        # Distance en mètres
+        distance = R * c
+        return distance
+    
     z/=1000
     x/=1000
-    aziTrig = (math.pi/2) - (azimuthDeg*math.pi/180)
+
+    aziTrig = (math.pi/2) - math.radians(azimuthDeg)
     distLong = z*math.cos(aziTrig) + x*math.sin(aziTrig)
     distLat = z*math.sin(aziTrig) - x*math.cos(aziTrig)
     R = 6371000
-    blat = distLat / (2*math.pi*R)
-    blong = distLong / (2*math.pi*R)
-
+    blat = math.degrees(distLat / R)
+    blong = math.degrees(distLong / R)
     return lat+blat, long+blong
 
 def construire_msg(tracked_objs, lat, long, azimuth):
@@ -194,13 +217,13 @@ class Camera:
                         
                         for tr in tracked.values():
                             if tr.label in IMPORTANT and tr.moved_enough():
-                                x,y,z = tr.xyz
+                                #x,y,z = tr.xyz
                                 #payload += f"{tr.id:<3},{int(x):<6},{int(y):<6},{int(z):<6},{tr.label:<10};"
                                 tr.last_sent_cxy = (tr.cx, tr.cy)
                         
                         if len(tracked.values()) > 0:
                             obj_data_msg = construire_msg(tracked.values(), self.latitude, self.longitude, self.azimuth)
-                            print("envoi de données objets", obj_data_msg)
+                            #print("envoi de données objets", obj_data_msg)
                             Q_out.put(obj_data_msg)
                             t_last_send = now
 
