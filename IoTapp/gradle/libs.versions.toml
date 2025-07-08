@@ -11,6 +11,7 @@ firebaseDatabase = "21.0.0"
 okhttp = "4.12.0"
 google_play_services = "21.0.1"
 playServicesLocation = "21.3.0"
+legacySupportV4 = "1.0.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -24,6 +25,7 @@ firebase-database = { group = "com.google.firebase", name = "firebase-database",
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 google-play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "google_play_services" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+legacy-support-v4 = { group = "androidx.legacy", name = "legacy-support-v4", version.ref = "legacySupportV4" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -1,8 +1,10 @@
 package com.example.iotapp;
 
 import android.Manifest;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -16,6 +18,7 @@ import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
@@ -50,6 +53,8 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 import com.google.android.gms.tasks.OnSuccessListener;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationCallback;
@@ -57,6 +62,10 @@ import com.google.android.gms.location.LocationResult;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -66,6 +75,9 @@ public class MainActivity extends AppCompatActivity {
     Button btnConnectWifi;
     TextView tSocket;
     TextView sData;
+
+
+    TextView dataView;
 
     private boolean isSocketConnected = false;
 
@@ -92,12 +104,135 @@ public class MainActivity extends AppCompatActivity {
 
     private SenderThread sender;
 
+
+    private Lock lockData= new ReentrantLock();
+
+    List<String> dataList= new LinkedList<>();
+
+
+
+
+
     private Lock lock = new ReentrantLock();
     private Condition dataUpdate = lock.newCondition();
 
     /*
-        * Listener to collect the pitch and roll data of the phone, useful for the pitch and roll of the vehicule
+        *Display the objects seen by other device.
     */
+
+    private void displayNbor() throws JSONException {
+        
+        lockData.lock();
+        runOnUiThread(()->{
+            dataView.setText("Lat : " + lastLat + " Lon : " + lastLon + " Az : " + lastOrientation +  "\n\n\n" );
+        });
+
+        for(String s: dataList){
+            List<JSONObject> obj= stringToJson(s);
+            for(JSONObject o : obj){
+
+                String emoji;
+                String label = o.has("label")? o.getString("label") : "undefined";
+                String seenby = o.has("seenby") ? o.getString("seenby"): "";
+                switch (label) {
+                    case "person":
+                        emoji = "🧍";
+                        break;
+                    case "car":
+                        emoji = "🚗";
+                        break;
+                    case "bicycle":
+                        emoji = "🚲";
+                        break;
+                    case "bus":
+                        emoji = "🚌";
+                        break;
+                    default:
+                        emoji = "❓";
+                        break;
+                }
+
+                double dist= haversine(lastLat,lastLon,(double)o.get("latitude"), (double)o.get("longitude"));
+                String arrow= getArrowFromLocation(lastOrientation,lastLat,lastLon,(double)o.get("latitude"), (double)o.get("longitude"));
+                String id = o.has("id")? o.getString("id") : o.getString("device-id");
+                runOnUiThread(()->{
+
+                    dataView.setText(dataView.getText() + emoji + ": " + id + " Seen by: " + seenby + " Distance: "+ String.format("%.2f", dist)+ " Dir : "+ arrow+" \n");
+
+                });
+
+                Log.d("AFFICHAGE", emoji);
+
+            }
+        }
+
+        dataList.clear();
+        lockData.unlock();
+
+    }
+
+
+
+    /*
+        *Convert a jsonString to a List of JSONObject to be displayed.
+    */
+    private List<JSONObject> stringToJson(String jsonString) {
+        List<JSONObject> ob= new LinkedList<>();
+        List<JSONArray> lobj= new LinkedList<>();
+        try{
+            JSONArray ar= new JSONArray(jsonString);
+            JSONObject obj= ar.getJSONObject(0);
+
+
+            lobj = valObj(obj);
+            ob= arrayJsontoObj(lobj);
+
+            JSONObject objet= ar.getJSONObject(1);
+            Iterator<String> keys= objet.keys();
+            while(keys.hasNext()){
+                String key= keys.next();
+                ob.add((JSONObject) objet.get(key));
+            }
+
+        } catch (JSONException e) {
+            Log.e("PARSERJSON", e.getMessage());
+        }
+
+        Log.d("cast",ob.toString());
+        return ob;
+    }
+
+    /*
+        *Extract a List of values (JSONArray) from a JSONObject.
+    */
+    private List<JSONArray> valObj(JSONObject obj) throws JSONException {
+        List<JSONArray> res= new LinkedList<>();
+        Iterator<String> keys = obj.keys();
+        while(keys.hasNext()){
+            String key= keys.next();
+            res.add((JSONArray) obj.get(key));
+        }
+        return res;
+    }
+
+    /*
+        *Convert a list of JSONArray to a List of JSONObject.
+     */
+    private List<JSONObject> arrayJsontoObj(List<JSONArray> aobj) throws JSONException {
+        List<JSONObject> res= new LinkedList<>();
+        for(JSONArray a: aobj){
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject obj = a.getJSONObject(i);
+                res.add(obj);
+            }
+        }
+
+        return res;
+    }
+
+    /*
+     * Listener to collect the pitch and roll data of the phone, useful for the pitch and roll of the vehicule
+     */
     private final SensorEventListener sensorListener = new SensorEventListener() {
         private long last = System.currentTimeMillis();
 
@@ -121,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
                 long now = System.currentTimeMillis();
                 if ((now - last) > 50) {
                     last = now;
-                    Log.d("sensor", "update");
+
                     lock.lock();
                     dataUpdate.signal();
                     lock.unlock();
@@ -134,6 +269,16 @@ public class MainActivity extends AppCompatActivity {
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
         }
     };
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -158,10 +303,14 @@ public class MainActivity extends AppCompatActivity {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
+
         btnConnectWifi = findViewById(R.id.wifi);
         tSocket= findViewById(R.id.socketConnected);
         tSocket.setText(R.string.no_co_sock);
         sData= findViewById(R.id.sendData);
+
+        dataView= findViewById(R.id.data_text_view);
+        dataView.setText("");
 
         sender = new SenderThread();
         sender.start();
@@ -169,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     /*
-        *Check if yhe phone is connected to the access point
+     *Check if yhe phone is connected to the access point
      */
     private boolean checkWifiConnection() {
         ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -199,8 +348,8 @@ public class MainActivity extends AppCompatActivity {
 
 
     /*
-        * Connect to the plateform using websocket API, useful for sending all the collected data
-    */
+     * Connect to the plateform using websocket API, useful for sending all the collected data
+     */
     private void connectWebSocket() {
         if (isSocketConnected) return;
 
@@ -215,20 +364,38 @@ public class MainActivity extends AppCompatActivity {
             public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
                 Log.d("WEBSOCKET", "Connecté !");
                 isSocketConnected = true;
-                //tSocket.setText(R.string.co_sock);
+                runOnUiThread(()->{
+                    tSocket.setText(R.string.co_sock);
+                });
+
             }
 
             @Override
             public void onMessage(@NonNull WebSocket webSocket, @NonNull String text) {
                 Log.d("WEBSOCKET", "Message reçu : " + text);
+                lockData.lock();
+
+                if (!(text.equals("null"))) {
+                    dataList.add(text);
+                }
+                Log.d("DATALIST", dataList.toString());
+                lockData.unlock();
+                try {
+                    displayNbor();
+                } catch (JSONException e) {
+                    Log.e("ERREUR_AFFICHAGE", e.getMessage());
+                }
             }
 
             @Override
             public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, Response response) {
                 Log.e("WEBSOCKET", "Erreur : " + t.getMessage());
                 isSocketConnected = false;
-                tSocket.setText(R.string.no_co_sock);
-                sData.setText("");
+                runOnUiThread(()->{
+                    tSocket.setText(R.string.no_co_sock);
+                    sData.setText("");
+                });
+
             }
 
             @Override
@@ -274,13 +441,18 @@ public class MainActivity extends AppCompatActivity {
 
 
                             String message = json.toString();
-                            Log.d("WEBSOCKET", String.valueOf(webSocket.queueSize()));
+                            //Log.d("WEBSOCKET", String.valueOf(webSocket.queueSize()));
                             boolean res = webSocket.send(message);
-                            //boolean res = true;
+
                             if (!res) {
                                 Log.d("WEBSOCKET", "input buffer overflow, closing the connection !!");
                             }
-                            sData.setText(R.string.sendD);
+                            runOnUiThread(()->{
+                                sData.setText(R.string.sendD);
+                            });
+
+                            //displayNbor();
+
                             //Log.d("WEBSOCKET", "JSON envoyé : " + message);
                         } catch (Exception e) {
                             Log.e("WEBSOCKET", "Erreur JSON : " + e.getMessage());
@@ -288,7 +460,7 @@ public class MainActivity extends AppCompatActivity {
 
                     }
                 } catch (InterruptedException e) {
-
+                    Log.d("SENDPOSITION", " "+ e.getMessage());
                 }
                 lock.unlock();
             }
@@ -300,7 +472,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /*
-        * Update the location of the user, each second
+     * Update the location of the user, each second
      */
     private void startLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -324,7 +496,7 @@ public class MainActivity extends AppCompatActivity {
                     lastLon = location.getLongitude();
                     lastSpd = location.getSpeed(); // m/s
                     lastAlt = location.getAltitude();
-                    Log.d("GPS UPDATE", lastLat + " | " + lastLon);
+                    //Log.d("GPS UPDATE", lastLat + " | " + lastLon);
                     lock.lock();
                     dataUpdate.signal();
                     lock.unlock();
@@ -336,7 +508,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /*
-        * Free all the allocated ressources
+     * Free all the allocated ressources
      */
     @Override
     protected void onDestroy() {
@@ -344,11 +516,12 @@ public class MainActivity extends AppCompatActivity {
         if (locationCallback != null) {
             fusedLocationClient.removeLocationUpdates(locationCallback);
         }
+
     }
 
     /*
-        * Check if the phone is still connected to the access point
-    */
+     * Check if the phone is still connected to the access point
+     */
     @Override
     protected void onResume() {
         super.onResume();
@@ -359,4 +532,61 @@ public class MainActivity extends AppCompatActivity {
             connectWebSocket();
         }
     }
+
+    private double haversine(double lat1, double lon1,
+                            double lat2, double lon2)
+    {
+
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+
+
+        lat1 = Math.toRadians(lat1);
+        lat2 = Math.toRadians(lat2);
+
+
+        double a = Math.pow(Math.sin(dLat / 2), 2) +
+                Math.pow(Math.sin(dLon / 2), 2) *
+                        Math.cos(lat1) *
+                        Math.cos(lat2);
+        double rad = 6371000;
+        double c = 2 * Math.asin(Math.sqrt(a));
+        return rad * c;
+    }
+
+    public static String getArrowFromLocation(double azimuth, double lat1, double lon1, double lat2, double lon2) {
+        try {
+            lat1 = Math.toRadians(lat1);
+            lat2 = Math.toRadians(lat2);
+            lon1 = Math.toRadians(lon1);
+            lon2 = Math.toRadians(lon2);
+            azimuth = Math.toRadians(azimuth);
+
+            double tan = (lat2 - lat1) / (lon2 - lon1);
+            double angle = Math.atan(tan);
+            angle = lon2 < lon1 ? angle + Math.PI : angle;
+            double relaAng = (Math.PI / 2 - azimuth) - angle;
+            relaAng = relaAng < 0 ? relaAng + 2 * Math.PI : relaAng;
+
+            double frac = 4 * relaAng / Math.PI;
+            int d = (int) Math.round(frac);
+
+            System.out.println("d " + azimuth + " " + angle + " " + relaAng + " " + d);
+
+            switch (d % 8) {
+                case 0: return "⬆️";
+                case 1: return "↗️";
+                case 2: return "➡️";
+                case 3: return "↘️";
+                case 4: return "⬇️";
+                case 5: return "↙️";
+                case 6: return "⬅️";
+                case 7: return "↖️";
+                default: return ""+angle;
+            }
+        } catch (Exception e) {
+            return "exeption";
+        }
+    }
+
 }
