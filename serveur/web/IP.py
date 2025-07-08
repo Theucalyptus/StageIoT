@@ -194,13 +194,17 @@ def __getNearbyObjects(deviceid, seuil):
                     if distance < seuil:
                         objects[neighbour].append(objData)
                         distances[neighbour].append(distance)
+
+                if objects[neighbour] == []: # remove device from list if no objects selected
+                    objects.pop(neighbour)
+                    distances.pop(neighbour)
             # else:
             #     print("no objects close enough for neighbour", neighbour)
 
         return objects, distances
     
     except NoLocationDataException:
-        print(deviceid, "has no known live-location (in cache, not DB).")
+        print("__getNearbyObjects", deviceid, "has no known live-location (in cache, not DB).")
         return {}, {}
 
 def __queryUserDeviceList(username):
@@ -1287,7 +1291,7 @@ def apiGetObject(deviceid):
     else:
         return jsonify({"error": "Object not found"}), 404
 
-# USED BY CLIENTS
+# USED BY CLIENTSnearby_objec
 @app.route('/api/nearby_objects/<deviceid>', methods=['GET'])
 def apinearby_objects(deviceid):
     """
@@ -1303,6 +1307,8 @@ def apinearby_objects(deviceid):
 
     """
     
+    global data_storage
+
     # key= request.args.get('key')
     # username = get_user_from_api_key(key)
     # if username is None:
@@ -1311,13 +1317,27 @@ def apinearby_objects(deviceid):
     if deviceid not in __queryAllDeviceIDs():
         return jsonify({"error": "Device not found"}), 404
        
-
     defSearchSize = 100
     # recuperer les objets vus par ces appareils
     objects,_ = __getNearbyObjects(deviceid, defSearchSize) # Antoine: 100 is the default search size, can be changed by the user in the request
 
+
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    
+    deviceData = {}
+    try:
+        latitude, longitude = __getDeviceLatestLocation(cursor, deviceid)
+        selected = ["device-id", "latitude", "longitude", "speed", "azimuth"]
+        temp = {k: {field: data_storage[k][-1][field] for field in data_storage[k][-1] if field in selected} for k in data_storage.keys() if k != deviceid}
+        for k in temp.keys():
+            lat, lon = temp[k]['latitude'], temp[k]['longitude']
+            if calculate_distance(latitude, longitude, lat, lon) < defSearchSize:
+                deviceData[k] = temp[k]
+    except NoLocationDataException:
+        logging.info("Requested nearby objects for device "+deviceid + " but don't have live location data")
     #distances = {} 
-    return jsonify(objects),200
+    return jsonify((objects, deviceData)),200
 
 @app.route('/api/getKey', methods=['GET'])
 @auth.login_required

@@ -22,7 +22,7 @@ q_netAlt_out, q_netAlt_in = Queue(), Buffer()
 sensorsList = []
 ### Phone
 if config.getboolean('sensors', 'phone'):
-    q_phone_out, q_phone_in = Buffer(), Queue()
+    q_phone_out, q_phone_in = Buffer(), Buffer()
     phone = sensors.Phone(q_phone_in, q_phone_out)
     sensorsList.append(phone)
     phone.run()
@@ -80,21 +80,23 @@ def __sendWorker():
     if ALT_NET:
         waitTime = min(MAIN_NET.time_between_send, ALT_NET.time_between_send)
 
+    lastSentData = {}
+    
     global exit
     while not exit:
         lastSendTime = time.time()
         time.sleep(waitTime)
-        lastSentData = {}
         # only send a new status update if latest sensor data changed (except timestamp)
         if lastSentData != message:
             now = time.time() 
             message['timestamp'] = now
-            lastSentData = message.copy()
             if MAIN_NET.isUp and now >= lastSendTime+MAIN_NET.time_between_send-1:
+                lastSentData = message.copy()
                 q_netMain_in.put(lastSentData)
                 lastSendTime = now
             elif ALT_NET != None and ALT_NET.isUp:
                 if now >= lastSendTime+ALT_NET.time_between_send-1:
+                    lastSentData = message.copy()
                     q_netAlt_in.put(lastSentData)
                     lastSendTime = now
                 else:
@@ -104,7 +106,7 @@ def __sendWorker():
 
         if MAIN_NET.isUp:
             near_objects = MAIN_NET.getNearbyObjects()
-            if near_objects is not {}:
+            if near_objects != [{}, {}]:
                 serialized_objects = json.dumps(near_objects)
                 q_phone_in.put(serialized_objects)
 

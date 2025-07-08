@@ -73,8 +73,6 @@ class Phone(Sensor):
 
     PORT = 6789
 
-
-
     def __init__(self, Q_in, Q_out, name="phone"):
         if config.getboolean('sensors.phone', 'logData'):
             super().__init__(name, dataRecorder=CSVWriter)
@@ -84,6 +82,8 @@ class Phone(Sensor):
         self.q_out = Q_out
         self.__registerDataFields()
         self.recorder.prepare(self.data.keys())
+
+        self.isUp = False
 
     def __registerDataFields(self):
         """
@@ -99,6 +99,7 @@ class Phone(Sensor):
         
     def __conn_handler(self, websocket):
         try:
+            self.isUp = True
             while not self.stopVar:
                 if not self.q_in.empty():
                     data = self.q_in.get()
@@ -121,6 +122,7 @@ class Phone(Sensor):
             logger.info("connection closed")
         except TimeoutError:
             logger.info("connection timeout")
+        self.isUp = False
 
     def __run(self):
         logger.info("websocket server listening on port " + str(Phone.PORT))
