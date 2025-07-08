@@ -562,16 +562,14 @@ public class MainActivity extends AppCompatActivity {
             lon2 = Math.toRadians(lon2);
             azimuth = Math.toRadians(azimuth);
 
-            double tan = (lat2 - lat1) / (lon2 - lon1);
-            double angle = Math.atan(tan);
-            angle = lon2 < lon1 ? angle + Math.PI : angle;
+            double angle = Math.atan2(lat2 - lat1, lon2 - lon1);
             double relaAng = (Math.PI / 2 - azimuth) - angle;
             relaAng = relaAng < 0 ? relaAng + 2 * Math.PI : relaAng;
 
             double frac = 4 * relaAng / Math.PI;
             int d = (int) Math.round(frac);
 
-            System.out.println("d " + azimuth + " " + angle + " " + relaAng + " " + d);
+            //System.out.println("d " + azimuth + " " + angle + " " + relaAng + " " + d);
 
             switch (d % 8) {
                 case 0: return "⬆️";
