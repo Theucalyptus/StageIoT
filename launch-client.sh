@@ -25,17 +25,20 @@ fi
 which python
 
 ## Network Setup
-if ! nmcli -g GENERAL.STATE c s Hotspot | grep -q -E '\bactiv'; then
-  sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
-  echo -e "Switching wifi on"
-  sudo nmcli radio wifi on
-  echo -e "Waiting 5sec for wifi to come online"
-  sleep 5
-  echo -e "Enabling wifi hotspot"
-  sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+if [[ "$1" != "nohotspot" ]]; then
+	if ! nmcli -g GENERAL.STATE c s Hotspot | grep -q -E '\bactiv'; then
+	  sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+	  echo -e "Switching wifi on"
+	  sudo nmcli radio wifi on
+	  echo -e "Waiting 5sec for wifi to come online"
+	  sleep 5
+	  echo -e "Enabling wifi hotspot"
+	  sudo nmcli connection up Hotspot # now the wifi hotspot should be enabled, allowing for ssh and more
+	else
+	  echo -e "Wifi hotspot is already on. skipping"
+	fi
 else
-  echo -e "Wifi hotspot is already on. skipping"
+	echo -e "Wifi hotspot disabled"
 fi
-
 # launching the main program
 python main.py
