@@ -16,11 +16,13 @@ TIMEGAP = 0 # difference between client local time and server time (approx)
             # a persistent RTC. Though for now works with networks that
             # allow for NTP so shouldn't be needed 
 
+NEARBY_DEFAULT = [{}, {}]
+
 class UartService:
 
     DELIMITER = bytes('\n\n\n\n', 'utf-8')
 
-    time_between_send = config.getint('network.uart', 'time_between_send')
+    time_between_send = config.getfloat('network.uart', 'time_between_send')
 
     def __init__(self, q_in, q_out):
         global config
@@ -83,7 +85,7 @@ class UartService:
         This method is not implemented for UART service.
         """
         logger.warning("uart service does not support getNearbyObjects")
-        return {}
+        return NEARBY_DEFAULT
 
     def stop(self):
         self.stopVar = True
@@ -99,9 +101,9 @@ class HTTPService:
     connCheckUrl = baseUrl + "/connectivityCheck"
     getObjURL= baseUrl + "/api/nearby_objects/" + config.get('general', 'device_id')
 
-    timeout = config.getint('network.http', 'timeout')
+    timeout = config.getfloat('network.http', 'timeout')
 
-    time_between_send = config.getint('network.http', 'time_between_send')
+    time_between_send = config.getfloat('network.http', 'time_between_send')
 
 
     def __init__(self, q_in, q_out):
@@ -162,7 +164,7 @@ class HTTPService:
     def getNearbyObjects(self):
         if not self.isUp:
             logger.warning("http service is down. Cannot receive data")
-            return None
+            return NEARBY_DEFAULT
         
         try:
             self.totalMsgRX += 1
@@ -173,16 +175,18 @@ class HTTPService:
             logger.info("HTTP Rx took {:.2f}".format(after - before) + "s")
             if r.status_code == 200:
                 data = r.json()
-                logger.info("http received " + str(data))
+                #logger.info("http received " + str(data))
+                print(data)
                 return data
             elif r.status_code == 204 or r.status_code == 404:
-                return [{},{}]
+                return NEARBY_DEFAULT
             else:
                 logger.warning("http received unexpected status code " + str(r.status_code))
         except ConnectionError as e:
             logger.error("http receive failed: " + str(e))
             self.isUp = False
             self.failedMsgRX+=1
+            return NEARBY_DEFAULT
 
     def stop(self):
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):

@@ -19,7 +19,8 @@ To run the client automaticaly on a embedded/headless device, see below for inst
 
 ## Configuration
 See `client/config.conf` for all available options. 
-You can enable/disable sensors, and set networking options (endpoint, frequency). This is also where you can set manual values, such as a static location for a non-movable sensor for example.
+__Don't forget do set the device id!__
+You can enable/disable sensors, and set networking options (endpoint, frequency). This is also where you can set manual values, such as a fixed location for a static sensor for example.
 
 ## How to Add a new sensor / data field
 - If adding a completly new sensor, in `client/sensors.py` create a new class inheriting the 'Sensor' class, and instance it in main. Add this instance to the `sensorsList`. 
@@ -62,7 +63,9 @@ Create a file named `plateformeIoT.sh` in `/usr/local/bin`, with the following c
 cd <path to installation> || exit -1
 source launch-client.sh <nohotspot>
 ```
-The `nohotspot` option prevent the launch script from trying to enable the WiFi hotspot on the client (for example if the client should not act as a wifi hotspot and instead connect to an existing network, or you don't use wifi entirely)
+Add the `nohotspot` argument if you wish to prevent the launch script from trying to enable the WiFi hotspot on the client (for example if the client should not act as a wifi hotspot and instead connect to an existing network, or you don't use wifi entirely)
+
+To consult the logs when the app 
 
 ### WiFi Hotspot
 If you plan on using the client's WiFi hotspot, the launch script can automatically enable it for you: you just have to provide a Network Manager connection named "Hotspot". This configuration is usually a file in `/etc/NetworkManager/system-connections` and should look somthing similar to this:

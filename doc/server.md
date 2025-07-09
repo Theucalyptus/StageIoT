@@ -20,6 +20,9 @@ In the `seuveur/config.conf` file, one can set:
 - the database settings (endpoint, authentication)
 - connection with *The Things Network* (endpoint, authentication)
 
+## Usage
+
+
 ## API
 Command-line usage example, with HTTPie:
 ```sh

@@ -119,7 +119,9 @@ class Phone(Sensor):
                     pass
             websocket.close()
         except ConnectionClosedError:
-            logger.info("connection closed")
+            logger.info("connection closed unexpectedly")
+        except ConnectionClosedOK:
+            logger.info("connection closed by pair ok")
         except TimeoutError:
             logger.info("connection timeout")
         self.isUp = False

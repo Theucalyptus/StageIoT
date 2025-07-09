@@ -5,6 +5,8 @@ This project aims at creating a platform for collecting and sending vehicule's d
 Both the server and client are written in Python.
 We also provide a Android app allowing a phone to be used as a sensor by the client (for GPS, acceleration, etc).
 
+![Architectural diagram of the platform](doc/diag.png)
+
 ## Main features
 - Data collection with an embedded system and external sensors
 - Cooperative Perception*: systems can signal obstacles, and others can query for nearby obstacles
@@ -36,7 +38,7 @@ See [hardware.md](doc/client_hardware.md) for more information about the hardwar
 See [client.md](doc/client.md.md) for information on how to setup, configure and debug the client software.
 
 ### Server
-See [server.md](doc/server.md) for informaton about the server's software, how to install, configure and run it.
+See [server.md](doc/server.md) for information about the server's software, how to install, configure and run it.
 
 
 ## Benchmarking

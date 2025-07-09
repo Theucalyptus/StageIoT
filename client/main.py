@@ -150,6 +150,10 @@ signal.signal(signal.SIGTERM, stop)
 
 ## Polling all sensors and update the dict containing all the information
 def run():
+
+    MAIN_FREQUENCY = 10 # Hz (ie all sensor will be sampled at this frequency.)
+    samplePeriod_ns = 1_000_000_000 / MAIN_FREQUENCY
+
     global exit
     while not exit:
         start = time.perf_counter_ns()
@@ -173,8 +177,10 @@ def run():
                 logger.warning("Trying to set coordinates but missing value for" + str(k.args))
 
         d = time.perf_counter_ns() - start
-        if d < 1000000:
-            time.sleep(d/1000000000)
+        if d < samplePeriod_ns:
+            time.sleep((samplePeriod_ns-d) / 1_000_000_000)
+        else:
+            logger.warning("main loop is behind schedule. Maybe try to reduce the sampling frequency (or optimize my slow code)")
         
 if __name__=="__main__":
     try:
