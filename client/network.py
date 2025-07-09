@@ -118,6 +118,9 @@ class HTTPService:
         self.failedMsgRX = 0
         self.totalMsgRX = 0
 
+        self.httpLatency=0
+        
+
     def run(self):
         logger.info("http service running with endpoint " + HTTPService.pushUrl)
         self.thread = threading.Thread(target=self.__run)
@@ -166,13 +169,14 @@ class HTTPService:
             before = time.time()
             r = requests.get(HTTPService.getObjURL, timeout=HTTPService.timeout)
             after = time.time()
+            self.httpLatency = after - before
             logger.info("HTTP Rx took {:.2f}".format(after - before) + "s")
             if r.status_code == 200:
                 data = r.json()
                 logger.info("http received " + str(data))
                 return data
             elif r.status_code == 204 or r.status_code == 404:
-                return {}
+                return [{},{}]
             else:
                 logger.warning("http received unexpected status code " + str(r.status_code))
         except ConnectionError as e:
@@ -181,8 +185,9 @@ class HTTPService:
             self.failedMsgRX+=1
 
     def stop(self):
-        rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
-        txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
-        print("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
+        if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
+            rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
+            txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
+            print("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
         self.stopVar = True
         self.thread.join()

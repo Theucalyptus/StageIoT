@@ -48,14 +48,14 @@
         android:text="Neighbour objects"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.567"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.252" />
+        app:layout_constraintVertical_bias="0.474" />
 
     <FrameLayout
-        android:layout_width="wrap_content"
-        android:layout_height="506dp"
+        android:id="@+id/frameLayout"
+        android:layout_width="393dp"
+        android:layout_height="353dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
@@ -64,8 +64,8 @@
         app:layout_constraintVertical_bias="1.0">
 
         <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_width="391dp"
+            android:layout_height="1160dp">
 
             <include
                 android:id="@+id/layoutView"
@@ -76,5 +76,48 @@
 
         </ScrollView>
     </FrameLayout>
+
+    <TextView
+        android:id="@+id/txtPos"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="sans position"
+        app:layout_constraintBottom_toBottomOf="@+id/textView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.585" />
+
+    <EditText
+        android:id="@+id/ip_adress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="252dp"
+        android:ems="10"
+        android:inputType="textEmailAddress"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.183"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <EditText
+        android:id="@+id/port"
+        android:layout_width="102dp"
+        android:layout_height="49dp"
+        android:layout_marginTop="252dp"
+        android:ems="10"
+        android:inputType="textEmailAddress"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.895"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/confIP"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="conf"
+        tools:layout_editor_absoluteX="41dp"
+        tools:layout_editor_absoluteY="31dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

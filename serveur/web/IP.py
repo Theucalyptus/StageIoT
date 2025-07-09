@@ -254,12 +254,12 @@ def __queryAllDeviceIDs():
     return devlist
 
 lastRefresh = None
-def __refreshObjectCache():
+def __refreshObjectCache(OBJECT_PERSISTANCE=15):
     """
         Remove from cache all objects whose last update was more than OBJECT_PERSISTANCE seconds ago.
     """
     # OBJECT PERSISTANCE
-    OBJECT_PERSISTANCE = 15
+    OBJECT_PERSISTANCE = Config["time_persistance"]
     now = time.time()
     if lastRefresh and lastRefresh + 1 < now:
         try:

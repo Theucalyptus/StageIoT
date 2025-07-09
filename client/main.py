@@ -111,9 +111,13 @@ def __sendWorker():
 
         if MAIN_NET.isUp:
             near_objects = MAIN_NET.getNearbyObjects()
-            if near_objects != [{}, {}]:
-                serialized_objects = json.dumps(near_objects)
-                q_phone_in.put(serialized_objects)
+            stat_data = {'httpLatency': MAIN_NET.httpLatency,'failedMsgTX': MAIN_NET.failedMsgTX, 'totalMsgTX': MAIN_NET.totalMsgTX,
+                         'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX}
+            near_objects.append(stat_data)
+            #if near_objects != [{}, {}]:
+        
+            serialized_objects = json.dumps(near_objects)
+            q_phone_in.put(serialized_objects)
 
 
 t = threading.Thread(target=__sendWorker)

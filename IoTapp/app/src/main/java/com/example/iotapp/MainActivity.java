@@ -1,5 +1,7 @@
 package com.example.iotapp;
 
+import static java.lang.System.exit;
+
 import android.Manifest;
 import android.content.ComponentName;
 import android.content.Context;
@@ -20,9 +22,13 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.ContactsContract;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.View;
+import android.view.autofill.AutofillValue;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -76,13 +82,25 @@ public class MainActivity extends AppCompatActivity {
     TextView tSocket;
     TextView sData;
 
+    private boolean sockPossible= false;
+
 
     TextView dataView;
 
+    TextView txtPos;
+
+    EditText fieldIP;
+    EditText fieldPort;
+
+    Button confirm;
+
     private boolean isSocketConnected = false;
 
-    private final String SERVER_IP = "10.42.0.1";
-    private final int SERVER_PORT = 6789;
+    private String SERVER_IP = "10.42.0.1";
+    private int SERVER_PORT = 6789;
+
+    private String SERVER_IP_def = "10.42.0.1";
+    private int SERVER_PORT_def = 6789;
 
     private WebSocket webSocket;
     private OkHttpClient client;
@@ -97,6 +115,8 @@ public class MainActivity extends AppCompatActivity {
     private float lastRoll = 0f;
     private float lastOrientation=0f;
 
+    Thread thPos;
+
     private double lastLat=0.0;
     private double lastLon=0.0;
     private double lastAlt=0.0;
@@ -109,7 +129,9 @@ public class MainActivity extends AppCompatActivity {
 
     List<String> dataList= new LinkedList<>();
 
+    JSONObject stat;
 
+    private String disp_stat="";
 
 
 
@@ -124,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
         
         lockData.lock();
         runOnUiThread(()->{
-            dataView.setText("Lat : " + lastLat + " Lon : " + lastLon + " Az : " + lastOrientation +  "\n\n\n" );
+            dataView.setText("");
         });
 
         for(String s: dataList){
@@ -155,17 +177,43 @@ public class MainActivity extends AppCompatActivity {
                 double dist= haversine(lastLat,lastLon,(double)o.get("latitude"), (double)o.get("longitude"));
                 String arrow= getArrowFromLocation(lastOrientation,lastLat,lastLon,(double)o.get("latitude"), (double)o.get("longitude"));
                 String id = o.has("id")? o.getString("id") : o.getString("device-id");
+                String disp= dataView.getText() + emoji + ": " + id + " Seen by: " + seenby + " Distance: "+ String.format("%.2f", dist)+ " Dir : "+ arrow+" \n";
+
+
                 runOnUiThread(()->{
 
-                    dataView.setText(dataView.getText() + emoji + ": " + id + " Seen by: " + seenby + " Distance: "+ String.format("%.2f", dist)+ " Dir : "+ arrow+" \n");
+                    dataView.setText(disp);
 
                 });
 
                 Log.d("AFFICHAGE", emoji);
 
             }
+
+
+        }
+        //String disp_stat="";
+        double latence;
+        double ratio_rx=0.0;
+        double ratio_tx=0.0;
+
+        Log.d("ICI", stat.toString());
+        if(stat!=null){
+            latence= stat.getDouble("httpLatency");
+            double fMsgTx= stat.getDouble("failedMsgTX");
+            double fMsgRx = stat.getDouble("failedMsgRX");
+            double tMsgTx = stat.getDouble(("totalMsgTX"));
+            double tMsgRx= stat.getDouble("totalMsgRX");
+
+            ratio_rx = (tMsgRx==0.0) ? ratio_rx: 100 * (1-(fMsgRx/tMsgRx));
+            ratio_tx = (tMsgTx==0.0) ? ratio_tx: 100 * (1-(fMsgTx/tMsgTx));
+
+            disp_stat= "Latence http : "+ String.format(".%4f",latence) + " sec | Succes Rx : " + ratio_rx + "% | Succes tx : " + ratio_tx + "%";
         }
 
+        runOnUiThread(()->{
+            dataView.setText("\n\n\n"+dataView.getText() + disp_stat + "\n");
+        });
         dataList.clear();
         lockData.unlock();
 
@@ -178,12 +226,14 @@ public class MainActivity extends AppCompatActivity {
     */
     private List<JSONObject> stringToJson(String jsonString) {
         List<JSONObject> ob= new LinkedList<>();
-        List<JSONArray> lobj= new LinkedList<>();
+        List<JSONArray> lobj;
         try{
             JSONArray ar= new JSONArray(jsonString);
             JSONObject obj= ar.getJSONObject(0);
+            stat= ar.getJSONObject(2);
 
 
+            Log.d("STAT", stat.toString());
             lobj = valObj(obj);
             ob= arrayJsontoObj(lobj);
 
@@ -303,11 +353,31 @@ public class MainActivity extends AppCompatActivity {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-
+        fieldIP = findViewById(R.id.ip_adress);
+        fieldPort = findViewById(R.id.port);
         btnConnectWifi = findViewById(R.id.wifi);
+        confirm = findViewById(R.id.confIP);
+
+        confirm.setOnClickListener(v->{
+            if(webSocket != null) webSocket.close(1000,null);
+            String ip_temp= fieldIP.getText().toString().trim();
+            SERVER_IP = ip_temp.equals("")? SERVER_IP_def : ip_temp;
+            String port_temp= fieldPort.getText().toString().trim();
+            SERVER_PORT = ip_temp.equals("")? SERVER_PORT_def : Integer.parseInt(port_temp);
+
+            sockPossible=true;
+            Log.d("IP", SERVER_IP);
+
+            connectWebSocket();
+        });
         tSocket= findViewById(R.id.socketConnected);
         tSocket.setText(R.string.no_co_sock);
         sData= findViewById(R.id.sendData);
+        txtPos= findViewById(R.id.txtPos);
+
+
+
+        updatePos();
 
         dataView= findViewById(R.id.data_text_view);
         dataView.setText("");
@@ -348,7 +418,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     /*
-     * Connect to the plateform using websocket API, useful for sending all the collected data
+     * Connect to the platform using websocket API, useful for sending all the collected data
      */
     private void connectWebSocket() {
         if (isSocketConnected) return;
@@ -356,7 +426,7 @@ public class MainActivity extends AppCompatActivity {
         client = new OkHttpClient();
 
         Request request = new Request.Builder()
-                .url("ws://" + SERVER_IP + ":" + SERVER_PORT) // Modifie le chemin si besoin
+                .url("ws://" + SERVER_IP + ":" + SERVER_PORT)
                 .build();
 
         webSocket = client.newWebSocket(request, new WebSocketListener() {
@@ -391,20 +461,40 @@ public class MainActivity extends AppCompatActivity {
             public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, Response response) {
                 Log.e("WEBSOCKET", "Erreur : " + t.getMessage());
                 isSocketConnected = false;
+                sockPossible=false;
                 runOnUiThread(()->{
                     tSocket.setText(R.string.no_co_sock);
                     sData.setText("");
                 });
-
+                exit(1);
             }
 
             @Override
             public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
                 webSocket.close(1000, null);
                 isSocketConnected = false;
+                sockPossible=false;
                 Log.d("WEBSOCKET", "Fermeture : " + reason);
             }
         });
+    }
+
+    private void updatePos(){
+        thPos= new Thread(()->{
+            try {
+                while (true){
+                    runOnUiThread(()->{
+                        txtPos.setText("Lat : " + lastLat + " Lon : " +  lastLon + " Az : " + String.format("%.2f", lastOrientation));
+                    });
+
+                    Thread.sleep(3000);
+                }
+            } catch (Exception e) {
+                Log.e("AFFICHAGE_POS", e.getMessage());
+            }
+        });
+
+        thPos.start();
     }
 
     class SenderThread extends Thread {
@@ -517,6 +607,8 @@ public class MainActivity extends AppCompatActivity {
             fusedLocationClient.removeLocationUpdates(locationCallback);
         }
 
+        if(thPos!=null) thPos.interrupt();
+
     }
 
     /*
@@ -528,9 +620,10 @@ public class MainActivity extends AppCompatActivity {
         Log.d("main", "onResume called");
         startLocationUpdates();
 
-        if(checkWifiConnection()) {
-            connectWebSocket();
-        }
+        //if(checkWifiConnection()) {
+
+        if(sockPossible) connectWebSocket();
+        //}
     }
 
     private double haversine(double lat1, double lon1,
@@ -562,14 +655,16 @@ public class MainActivity extends AppCompatActivity {
             lon2 = Math.toRadians(lon2);
             azimuth = Math.toRadians(azimuth);
 
-            double angle = Math.atan2(lat2 - lat1, lon2 - lon1);
+            double tan = (lat2 - lat1) / (lon2 - lon1);
+            double angle = Math.atan(tan);
+            angle = lon2 < lon1 ? angle + Math.PI : angle;
             double relaAng = (Math.PI / 2 - azimuth) - angle;
             relaAng = relaAng < 0 ? relaAng + 2 * Math.PI : relaAng;
 
             double frac = 4 * relaAng / Math.PI;
             int d = (int) Math.round(frac);
 
-            //System.out.println("d " + azimuth + " " + angle + " " + relaAng + " " + d);
+            System.out.println("d " + azimuth + " " + angle + " " + relaAng + " " + d);
 
             switch (d % 8) {
                 case 0: return "⬆️";
