@@ -37,6 +37,13 @@ class UartService:
         self.isUp = True # for LoRa, we don't really have a way to check  if the device has connectivity
                          # so we just assume that it is
 
+
+        self.failedMsgTX = 0
+        self.totalMsgTX = 0
+        self.failedMsgRX = 0
+        self.totalMsgRX = 0
+
+
     def run(self):
         logger.info("uart service running")
         self.thread = threading.Thread(target=self.__run)
@@ -106,6 +113,11 @@ class HTTPService:
         self.isUp = False
         self.lastConnCheck = None
 
+        self.failedMsgTX = 0
+        self.totalMsgTX = 0
+        self.failedMsgRX = 0
+        self.totalMsgRX = 0
+
     def run(self):
         logger.info("http service running with endpoint " + HTTPService.pushUrl)
         self.thread = threading.Thread(target=self.__run)
@@ -135,8 +147,11 @@ class HTTPService:
         serialized = json.dumps(msg)
         logger.info("http sending " + serialized)
         try:
-            requests.post(HTTPService.pushUrl, data=serialized, timeout=HTTPService.timeout)
+            self.totalMsgTX+=1
+            resp = requests.post(HTTPService.pushUrl, data=serialized, timeout=HTTPService.timeout)
+            logger.info("HTTP Tx latency {:.2f}".format(resp.json()['rxDate'] - msg['timestamp']) + "s")
         except ConnectionError:
+            self.failedMsgTX+=1
             self.isUp = False # connection seems to be down
             self.q_in.put(msg) # re-adding the message to the queue
             logger.warning("http send failed. Network may be down")
@@ -147,7 +162,11 @@ class HTTPService:
             return None
         
         try:
+            self.totalMsgRX += 1
+            before = time.time()
             r = requests.get(HTTPService.getObjURL, timeout=HTTPService.timeout)
+            after = time.time()
+            logger.info("HTTP Rx took {:.2f}".format(after - before) + "s")
             if r.status_code == 200:
                 data = r.json()
                 logger.info("http received " + str(data))
@@ -159,7 +178,11 @@ class HTTPService:
         except ConnectionError as e:
             logger.error("http receive failed: " + str(e))
             self.isUp = False
+            self.failedMsgRX+=1
 
     def stop(self):
+        rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
+        txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
+        print("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
         self.stopVar = True
         self.thread.join()

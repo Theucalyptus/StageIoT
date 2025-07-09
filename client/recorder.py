@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class NullWriter:
 
-    def __init__(self):
+    def __init__(self, sensorName):
         pass
     
     def prepare(self, dataFields):

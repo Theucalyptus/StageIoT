@@ -35,6 +35,11 @@ if config.getboolean('sensors', 'canbus'):
     sensorsList.append(canbus)
     canbus.run()
 
+### Static values override
+static = sensors.Static()
+sensorsList.append(static)
+
+
 ### Object Detection
 cam = None
 if config.getboolean('sensors', 'camera'):
@@ -69,7 +74,7 @@ alternative = config.get('network', 'alt_interface')
 MAIN_NET = __enableNetInterface(main, q_netMain_in, q_netMain_out)
 ALT_NET = __enableNetInterface(alternative, q_netAlt_in, q_netAlt_out)
 
-message = {'device-id':config.get('general', 'device_id'), 'type':1}
+message = {'device-id':config.get('general', 'device_id'), 'type':1, 'latitude':0.0, 'longitude':0.0, 'azimuth':0.0}
 
 
 exit = False
@@ -158,8 +163,11 @@ def run():
                 pass
         
         if coordChanged and cam:
-            cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
-        
+            try:
+                cam.setCoordinates(message['latitude'], message['longitude'], message['azimuth'])
+            except KeyError as k:
+                logger.warning("Trying to set coordinates but missing value for" + str(k.args))
+
         d = time.perf_counter_ns() - start
         if d < 1000000:
             time.sleep(d/1000000000)

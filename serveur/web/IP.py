@@ -408,12 +408,17 @@ def post_data():
         JSON response: A JSON response indicating the status of the request.
     """
 
+
     if request.method == 'POST': 
+        t = time.time()
         # récupérer les données de la requête
         raw_data = request.get_data().decode('utf-8')
         raw_data= raw_data.removesuffix("\n")
         try:
             data = json.loads(raw_data)
+            netDelay = t - data["timestamp"]
+            print(data['device-id'], "net delay", netDelay)
+            data['netDelay'] = netDelay
             if data['type'] == MessageTypes.DEVICE_UPDATE:
                 # device status update
                 Q_out.put(data.copy()) #copy because we edit the message before DB insertion
@@ -439,7 +444,7 @@ def post_data():
             else:
                 logging.error("Not Implemented message type " + str(data['type']))
 
-            return jsonify({"status": "success"}), 200
+            return jsonify({"status": "success", "rxDate": t}), 200
         except json.JSONDecodeError:
             print("Received malformed json data")
     else:

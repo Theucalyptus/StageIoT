@@ -194,3 +194,37 @@ class CANBus(Sensor):
     def run(self):
         self.thread = threading.Thread(target=self.__run, args=())
         self.thread.start()
+
+
+class Static(Sensor):
+
+    def __strToType(text):
+        m = text[-1]
+        if m == 'i':
+            return int(text[:-1])
+        elif m == 'f':
+            return float(text[:-1])
+        elif m == 's':
+            return text[:-1]
+        elif m == 'b':
+            return bool(text)
+        else:
+            return None
+    def __init__(self):
+        super().__init__("static")
+        self.data = {}
+        dataRaw = config['sensors.static']
+        for k in dataRaw:
+            self.data[k] = Static.__strToType(dataRaw[k])
+
+    def getLatestSample(self):
+        # This function will always return data, as we want static variable to override all sensors
+        # in case the user wants to log locally some values, but send another one instead
+        sample = {}
+        sample['timestamp'] = time.time()
+        for (k, v) in self.data.items():
+            sample[k] = v
+        return sample
+    
+    def stop(self):
+        pass # nothing to stop for static
