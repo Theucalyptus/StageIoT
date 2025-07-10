@@ -31,8 +31,11 @@ auth = HTTPTokenAuth(scheme='Bearer')
 app._static_folder = './static/'
 app.secret_key = 'your_secret_key'
 Q_out: Queue
+
 data_storage = {}
 objects_storage = {}
+stats_storage = {}
+
 Config = {}
 
 ### AUXILIARY FUNCTIONS
@@ -416,11 +419,29 @@ def post_data():
         raw_data= raw_data.removesuffix("\n")
         try:
             data = json.loads(raw_data)
-            netDelay = t - data["timestamp"]
-            print(data['device-id'], "net delay", netDelay)
+            
+            # Network delay
+            netDelay = (t - data["timestamp"]) * 1000 # in milliseconds
             data['netDelay'] = netDelay
+            
+            # Packet Loss
+            current =  data["msgNumber"]
+            if not data['device-id'] in stats_storage:
+                stats_storage[data['device-id']] = {"lastMsgNumber": current, "lossSinceLast":0}
+            else:
+                lastRxNbr = stats_storage[data['device-id']]["lastMsgNumber"]
+                nbLoss = (current - lastRxNbr - 1)%256
+                if nbLoss > 0:
+                    print("detected packet loss", nbLoss, current, lastRxNbr)
+                stats_storage[data['device-id']]["lastMsgNumber"] = current
+                stats_storage[data['device-id']]["lossSinceLast"] += nbLoss
+
             if data['type'] == MessageTypes.DEVICE_UPDATE:
                 # device status update
+                # save packet loss stat and reset
+                data['packetLoss'] = stats_storage[data['device-id']]["lossSinceLast"]
+                stats_storage[data['device-id']]["lossSinceLast"] = 0
+
                 Q_out.put(data.copy()) #copy because we edit the message before DB insertion
                 add_data_to_cache(data)
             elif data['type'] == MessageTypes.OBJECT_REPORT:
@@ -471,13 +492,18 @@ def add_data_to_cache(data):
         # Ajouter les données au cache lié à l'eui
         data_storage[data['device-id']].append(data)
 
-    # Supprimer les données de plus d'une heure (amélioration: ne pas faire tous les devices a chaque fois)
+    # Supprimer les données ancienne
     for device in data_storage:
         seuil=0
-        while (data_storage[device][-1]['timestamp']-data_storage[device][seuil]['timestamp']) > 600:
+        while (data_storage[device][-1]['timestamp']-data_storage[device][seuil]['timestamp']) > Config['cache_duration']:
             seuil+=1
 
         data_storage[device]=data_storage[device][seuil:] 
+        if data_storage[device] == []:
+            print("Device", device, "has been inactive for more than", Config["cache_duration"], ". Removing from live cache.") 
+            data_storage.pop(device)
+            stats_storage.pop(device)
+            objects_storage.pop(device)
 
 @app.route('/get_data', methods=['GET'])
 @auth.login_required
@@ -486,8 +512,6 @@ def get_data():
     # Récupérer les paramètres de la requête
     duration = request.args.get('duration')
     device = request.args.get('dev')
-
-    data = {}
     
     # Se connecter à la base de données
     db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], database = Config["db_name"])
@@ -496,44 +520,44 @@ def get_data():
     # Vérifier si l'utilisateur est connecté
     username = check_user_token()
 
-    # Récuperer la liste des devices associés à l'utilisateur
-    query = "SELECT device FROM DeviceOwners WHERE owner = %s;"
-    cursor.execute(query,(username,))
-    result= cursor.fetchall()
-    # Si l'utilisateur a des devices associés, récupérer les données de ces devices
-    if len(result) !=0:
-        for device in result[:][0]:
-            # Récupérer les données de la base de données
-            if duration != None and float(duration) > 600:
-                duration = float(duration)
-                if (device in data_storage) and len(data_storage[device])>0:
-                    # on prend la période à partir de la dernière donnée connue
-                    args = (datetime.fromtimestamp(data_storage[device][-1]['timestamp']-duration-1),)
-                else : 
-                    # sinon on prend à partir du temps courant
-                    args = (datetime.fromtimestamp(datetime.now().timestamp()-duration-1),)
-                
-                # Récupérer les données de la base de données
-                query = "SELECT * FROM " + device + " WHERE timestamp > %s"
-                cursor.execute(query,args)
-                result = cursor.fetchall()
-                data[device]=data_labels_to_json(result,device)
 
-            # Si possible récupérer les données de la mémoire cache
-            else:
-                data[device]=[]
-                if device in data_storage:
-                    if duration != None:
-                        # on prend les infos de la durée demandée
-                        duration = float(duration)
-                        info = data_storage[device]
-                        seuil = 0
-                        while (info[-1]['timestamp']-info[seuil]['timestamp']) > duration+1:
-                            seuil+=1
-                        data[device]+=info[seuil:]
-                    else :
-                        # on prend tout
-                        data[device]+=data_storage[device]
+    # Récuperer la liste des devices associés à l'utilisateur
+    data = {}
+    userDevID = [d['device-id'] for d in __queryUserDeviceList(username)]
+    if device in userDevID:
+        # Récupérer les données de la base de données
+        if duration != None and float(duration) > Config['cache_duration']:
+            print("using DB")
+            duration = float(duration)
+            if (device in data_storage) and len(data_storage[device])>0:
+                # on prend la période à partir de la dernière donnée connue
+                args = (datetime.fromtimestamp(data_storage[device][-1]['timestamp']-duration-1),)
+            else : 
+                # sinon on prend à partir du temps courant
+                args = (datetime.fromtimestamp(datetime.now().timestamp()-duration-1),)
+            
+            # Récupérer les données de la base de données
+            query = "SELECT * FROM " + device + " WHERE timestamp > %s"
+            cursor.execute(query,args)
+            result = cursor.fetchall()
+            data[device]=data_labels_to_json(result,device)
+
+        # Si possible récupérer les données de la mémoire cache
+        else:
+            print("using cache", device)
+            data[device]=[]
+            if device in data_storage:
+                if duration != None:
+                    # on prend les infos de la durée demandée
+                    duration = float(duration)
+                    info = data_storage[device]
+                    seuil = 0
+                    while (info[-1]['timestamp']-info[seuil]['timestamp']) > duration+1:
+                        seuil+=1
+                    data[device]+=info[seuil:]
+                else :
+                    # on prend tout
+                    data[device]+=data_storage[device]
     # latest
     return jsonify(data) 
 
@@ -1721,6 +1745,7 @@ def IPnode(Q_output: Queue, config):
     """
     global Q_out, Config
     Config=config
+    Config["cache_duration"] = float(Config["cache_duration"])
     Q_out=Q_output
     db = mysql.connector.connect(host=Config["SQL_host"], user=config["SQL_username"], password=Config["SQL_password"])
     app.app_context().push()

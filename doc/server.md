@@ -23,13 +23,10 @@ In the `seuveur/config.conf` file, one can set:
 ## Usage
 
 
-## API
+### API
 Command-line usage example, with HTTPie:
 ```sh
 # get request
 http <url>/api/deviceData/<deviceid> key==<your api key> start_date=="2025-01-01 00:00:00"
 ```
 TODO: list and doc of all endpoints
-
-## Architecture of the software
-TODO
