@@ -43,31 +43,9 @@ class Tracked:
 #------ get latitude phone-----------
 def get_latitude_longitude(lat, long, azimuthDeg, z, x):
     """
-    Returns the latitude and longitude of the object, based on the azimuth and relative coordinates of the camera
+    Returns the latitude and longitude of the object, based on the azimuth and relative position from the camera
     """
-    
-    def calculate_distance(lat1, lon1, lat2, lon2):
-        # Rayon de la Terre en kilomètres
-        R = 6371000
-
-        # Convertir les degrés en radians
-        lat1_rad = math.radians(lat1)
-        lon1_rad = math.radians(lon1)
-        lat2_rad = math.radians(lat2)
-        lon2_rad = math.radians(lon2)
-
-        # Différences des coordonnées
-        dlat = lat2_rad - lat1_rad
-        dlon = lon2_rad - lon1_rad
-
-        # Formule de Haversine
-        a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-        # Distance en mètres
-        distance = R * c
-        return distance
-    
+  
     z/=1000
     x/=1000
 
@@ -88,7 +66,6 @@ def construire_msg(tracked_objs, lat, long, azimuth):
     }
 
     for obj in tracked_objs:
-        print(obj)                                              
                                                                 #z          #x
         lat,lon= get_latitude_longitude(lat, long, azimuth, obj.xyz[2], obj.xyz[0])
         data["objects"].append({

@@ -474,7 +474,7 @@ def add_data_to_cache(data):
     # Supprimer les données de plus d'une heure (amélioration: ne pas faire tous les devices a chaque fois)
     for device in data_storage:
         seuil=0
-        while (data_storage[device][-1]['timestamp']-data_storage[device][seuil]['timestamp']) > 3600:
+        while (data_storage[device][-1]['timestamp']-data_storage[device][seuil]['timestamp']) > 600:
             seuil+=1
 
         data_storage[device]=data_storage[device][seuil:] 
@@ -504,7 +504,7 @@ def get_data():
     if len(result) !=0:
         for device in result[:][0]:
             # Récupérer les données de la base de données
-            if duration != None and float(duration) > 60:
+            if duration != None and float(duration) > 600:
                 duration = float(duration)
                 if (device in data_storage) and len(data_storage[device])>0:
                     # on prend la période à partir de la dernière donnée connue
@@ -534,6 +534,7 @@ def get_data():
                     else :
                         # on prend tout
                         data[device]+=data_storage[device]
+    # latest
     return jsonify(data) 
 
 @app.route('/get_latest_data', methods=['GET'])
@@ -582,7 +583,7 @@ def data_labels_to_json(data,table):
     for d in data:
         mesure={}
         mesure['timestamp']=d[1].timestamp()*1000
-        for i in range(2,len(d)-1):
+        for i in range(1,len(d)):
             mesure[label[i]]=d[i]
         result.append(mesure)
     return result

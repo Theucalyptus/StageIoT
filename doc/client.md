@@ -9,6 +9,10 @@ Data from the sensors are stored in csv files (one per sensor), named after the 
 
 Objects detected by the camera are approximatly located using a combination of the GPS coordinates and azimuth provided by the phone, and the position of objects relative to the camera. This means that the phone should point in the same direction as the camera (i.e the top of the screen of the phone is ponting the same way as the lens)
 
+Each sensor as a thread dedicated to sampling and logging its own data. A main thread gathers data from all sensors and prepares messages to be sent other the network on a periodic basis (the periode can be set in the config file; only if the data has changed since the last upload). In case the main network is down, we try the alternative network.
+Objects report messages are handled separatly. For now, objects report messages are sent *only sent via the main network* (as we assume the use of LoRa as the backup, which doesn't offer enough bandwith for it to be practical). 
+We filter the main types of objects that we want (like car, person, motocycle...) and periodically send object report messages, containing all tracked objects.
+
 ## Running the client
 - Create a Python venv (Python >=3.10, tested on both 3.10.12 and 3.13.5)
 - Enable the venv and install the requirements `pip install -r requirements.txt`
@@ -63,7 +67,7 @@ Create a file named `plateformeIoT.sh` in `/usr/local/bin`, with the following c
 cd <path to installation> || exit -1
 source launch-client.sh <nohotspot>
 ```
-Add the `nohotspot` argument if you wish to prevent the launch script from trying to enable the WiFi hotspot on the client (for example if the client should not act as a wifi hotspot and instead connect to an existing network, or you don't use wifi entirely)
+Add the `nohotspot` argument if you wish to prevent the launch script from trying to enable the WiFi hotspot on the client (for example if the client should instead connect to an existing network, like a network share from the phone, or you don't use wifi entirely)
 
 To consult the logs when the app 
 

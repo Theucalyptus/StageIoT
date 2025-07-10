@@ -47,7 +47,7 @@ After that, we followed the official instructions.
 ## LoPy 4
 We used multiple LoPy 4 as our LoRa transceivers.
 We provide two version of the program to be used on the lopy4: `main.py` uses a dedicated UART interface using pins on the Expansion Board, and `main_usb.py` uses the usb cable to communicate.
-__Don't forget to edit the lora DevEUI, AppEUI and AppKey in the code !__
+__Don't forget to edit the LoRaWANN DevEUI, AppEUI and AppKey in the code !__
 
-To upload your programs to the device with the VSCode extension, we found that any firmware with version <=1.19 doesn't work, so make sure to update to version 1.20 or above. 
-You may need to allow your user account to access the device, please check [client.md](./client.md) for how to fix uart permission.
+To upload your programs to the device with the VSCode extension, we found that any firmware with version <=1.19 doesn't work with the latest version of the extension (as of july 2025), so make sure to update the firmware to version 1.20 or above. 
+You may also need to grant permissions to your user account to access the device, please check [client.md](client.md#fixing-permission-issues) for how to fix uart permission.
