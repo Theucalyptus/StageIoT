@@ -49,7 +49,7 @@ if config.getboolean('sensors', 'camera'):
 
 #Save stat
 statWriter = CSVWriter("statnetwork")
-statWriter.prepare(['timestamp','device-id', 'httpLatency', 'failedMsgTX', 'totalMsgTX', 'failedMsgRX', 'totalMsgRX'])
+statWriter.prepare(['timestamp','device-id', 'networkLatency', 'failedMsgTX', 'totalMsgTX', 'failedMsgRX', 'totalMsgRX'])
 
 ## NETWORK
 MAIN_NET = None
@@ -89,10 +89,10 @@ def __sendWorker():
         waitTime = min(MAIN_NET.time_between_send, ALT_NET.time_between_send)
 
     lastSentData = {}
+    lastSendTime = 0.0
     
     global exit
     while not exit:
-        lastSendTime = time.time()
         time.sleep(waitTime)
         # only send a new status update if latest sensor data changed (except timestamp)
         if lastSentData != message:
@@ -114,7 +114,7 @@ def __sendWorker():
 
         if MAIN_NET.isUp:
             near_objects = MAIN_NET.getNearbyObjects()
-            stat_data = {'httpLatency': MAIN_NET.httpLatency,'failedMsgTX': MAIN_NET.failedMsgTX, 'totalMsgTX': MAIN_NET.totalMsgTX,
+            stat_data = {'networkLatency': MAIN_NET.networkLatency,'failedMsgTX': MAIN_NET.failedMsgTX, 'totalMsgTX': MAIN_NET.totalMsgTX,
                          'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX}
             near_objects.append(stat_data)
             #if near_objects != [{}, {}]:
@@ -122,7 +122,7 @@ def __sendWorker():
             data_network= {}
             data_network['timestamp'] = time.time()
             data_network['device-id'] = config.get('general', 'device_id')
-            data_network['httpLatency'] = stat_data['httpLatency']
+            data_network['networkLatency'] = stat_data['networkLatency']
             data_network['failedMsgTX'] = stat_data['failedMsgTX']
             data_network['totalMsgTX'] = stat_data['totalMsgTX']
             data_network['failedMsgRX'] = stat_data['failedMsgRX']

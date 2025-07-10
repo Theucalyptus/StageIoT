@@ -132,10 +132,10 @@
         }
     
         function updateChart(data) {
-            const labels = data.map(item => new Date(item.timestamp));
+            const labels = data.map(item => new Date(item.timestamp*1000));
             chart.data.labels = labels;
             _fields.forEach((field, index) => {
-                chart.data.datasets[index].data = data.map(item => ({x: new Date(item.timestamp), y: item[field]}));
+                chart.data.datasets[index].data = data.map(item => ({x: new Date(item.timestamp*1000), y: item[field]}));
                 chart.data.datasets[index].hidden = !document.getElementById(field).checked;
                 
             });

@@ -199,7 +199,7 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d("ICI", stat.toString());
         if(stat!=null){
-            latence= stat.getDouble("httpLatency");
+            latence= stat.getDouble("networkLatency");
             double fMsgTx= stat.getDouble("failedMsgTX");
             double fMsgRx = stat.getDouble("failedMsgRX");
             double tMsgTx = stat.getDouble(("totalMsgTX"));

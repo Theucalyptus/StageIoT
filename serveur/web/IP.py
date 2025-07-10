@@ -427,13 +427,13 @@ def post_data():
             # Packet Loss
             current =  data["msgNumber"]
             if not data['device-id'] in stats_storage:
-                stats_storage[data['device-id']] = {"lastMsgNumber": current, "lossSinceLast":0}
+                stats_storage[data['device-id']] = {"lastmsgNumber": current, "lossSinceLast":0}
             else:
-                lastRxNbr = stats_storage[data['device-id']]["lastMsgNumber"]
+                lastRxNbr = stats_storage[data['device-id']]["lastmsgNumber"]
                 nbLoss = (current - lastRxNbr - 1)%256
                 if nbLoss > 0:
                     print("detected packet loss", nbLoss, current, lastRxNbr)
-                stats_storage[data['device-id']]["lastMsgNumber"] = current
+                stats_storage[data['device-id']]["lastmsgNumber"] = current
                 stats_storage[data['device-id']]["lossSinceLast"] += nbLoss
 
             if data['type'] == MessageTypes.DEVICE_UPDATE:
@@ -527,7 +527,6 @@ def get_data():
     if device in userDevID:
         # Récupérer les données de la base de données
         if duration != None and float(duration) > Config['cache_duration']:
-            print("using DB")
             duration = float(duration)
             if (device in data_storage) and len(data_storage[device])>0:
                 # on prend la période à partir de la dernière donnée connue
@@ -544,7 +543,6 @@ def get_data():
 
         # Si possible récupérer les données de la mémoire cache
         else:
-            print("using cache", device)
             data[device]=[]
             if device in data_storage:
                 if duration != None:
@@ -606,8 +604,8 @@ def data_labels_to_json(data,table):
     label = [desc[i][0] for i in range(len(desc))]
     for d in data:
         mesure={}
-        mesure['timestamp']=d[1].timestamp()*1000
-        for i in range(1,len(d)):
+        mesure['timestamp']=d[1].timestamp()
+        for i in range(2,len(d)):
             mesure[label[i]]=d[i]
         result.append(mesure)
     return result

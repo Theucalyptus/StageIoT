@@ -3,7 +3,7 @@ import logging
 import threading
 import requests
 from config import config
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError, ReadTimeout
 import json
 import time
 from common import lora
@@ -46,7 +46,7 @@ class UartService:
         self.totalMsgTX = 0
         self.failedMsgRX = 0
         self.totalMsgRX = 0
-
+        self.networkLatency = 0
 
     def run(self):
         logger.info("uart service running")
@@ -61,7 +61,7 @@ class UartService:
             
     def __send(self, msg):
         global MSG_NUMBER
-        msg['msgnumber'] = (MSG_NUMBER % 256)
+        msg['msgNumber'] = (MSG_NUMBER % 256)
         MSG_NUMBER += 1
         logger.info("uart sending " + str(msg))
         try:
@@ -124,8 +124,7 @@ class HTTPService:
         self.totalMsgTX = 0
         self.failedMsgRX = 0
         self.totalMsgRX = 0
-
-        self.httpLatency=0
+        self.networkLatency=0
         
 
     def run(self):
@@ -155,7 +154,7 @@ class HTTPService:
 
     def __send(self, msg):
         global MSG_NUMBER
-        msg['msgnumber'] = (MSG_NUMBER % 256)
+        msg['msgNumber'] = (MSG_NUMBER % 256)
         MSG_NUMBER += 1
         serialized = json.dumps(msg)
         logger.info("http sending " + serialized)
@@ -182,7 +181,7 @@ class HTTPService:
             before = time.time()
             r = requests.get(HTTPService.getObjURL, timeout=HTTPService.timeout)
             after = time.time()
-            self.httpLatency = after - before
+            self.networkLatency = after - before
             logger.info("HTTP Rx took {:.2f}".format(after - before) + "s")
             if r.status_code == 200:
                 data = r.json()
@@ -193,7 +192,7 @@ class HTTPService:
                 return NEARBY_DEFAULT
             else:
                 logger.warning("http received unexpected status code " + str(r.status_code))
-        except ConnectionError as e:
+        except (ConnectionError, ReadTimeout) as e:
             logger.error("http receive failed: " + str(e))
             self.isUp = False
             self.failedMsgRX+=1
