@@ -17,7 +17,7 @@ class MalformedLoraMessage(Exception):
 
 # This list of data fields must be a subset of fields available through the client's sensors
 # !! THIS LIST SHOULD BE IDENTICAL IN BOTH THE CLIENT AND THE SERVER !!
-SENSORS_MSG = ['type', 'timestamp', 'latitude', 'longitude', 'altitude', 'azimuth', 'pitch', 'roll', 'speed']
+SENSORS_MSG = ['type','msgnumber', 'timestamp', 'latitude', 'longitude', 'altitude', 'azimuth', 'pitch', 'roll', 'speed']
 
 # must contain the same elements as `LABELS` in client/spatial_object_perso
 OBJECTS_LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus","car",
@@ -27,6 +27,7 @@ OBJECT_MSG_HEADER = ['type', 'timestamp']
 OBJECT_ITEM_MSG = ['latitude', 'longitude', 'label', 'id']
 
 FIELDS_TYPES = {'type':'H',
+                'msgnumber':'H',
                 'timestamp':'d',
                 'latitude':'f', 
                 'longitude':'f',

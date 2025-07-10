@@ -18,6 +18,8 @@ TIMEGAP = 0 # difference between client local time and server time (approx)
 
 NEARBY_DEFAULT = [{}, {}]
 
+MSG_NUMBER = 0 # global message number, used to identify messages sent by the client
+
 class UartService:
 
     DELIMITER = bytes('\n\n\n\n', 'utf-8')
@@ -58,6 +60,9 @@ class UartService:
                 self.__send(self.q_in.get())
             
     def __send(self, msg):
+        global MSG_NUMBER
+        msg['msgnumber'] = (MSG_NUMBER % 256)
+        MSG_NUMBER += 1
         logger.info("uart sending " + str(msg))
         try:
             data = lora.data_to_lora(msg)
@@ -149,6 +154,9 @@ class HTTPService:
                 
 
     def __send(self, msg):
+        global MSG_NUMBER
+        msg['msgnumber'] = (MSG_NUMBER % 256)
+        MSG_NUMBER += 1
         serialized = json.dumps(msg)
         logger.info("http sending " + serialized)
         try:
@@ -160,6 +168,9 @@ class HTTPService:
             self.isUp = False # connection seems to be down
             self.q_in.put(msg) # re-adding the message to the queue
             logger.warning("http send failed. Network may be down")
+        except requests.exceptions.JSONDecodeError:
+            logger.warning("http send failed. Invalid JSON response")
+            self.failedMsgTX += 1
 
     def getNearbyObjects(self):
         if not self.isUp:

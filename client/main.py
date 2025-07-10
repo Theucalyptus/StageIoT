@@ -4,6 +4,7 @@ import threading
 import time
 import json
 from buffer import Buffer
+from recorder import CSVWriter
 import network
 import sensors
 from config import config
@@ -46,7 +47,9 @@ if config.getboolean('sensors', 'camera'):
     cam = Camera()
     cam.run(q_netMain_in)
 
-
+#Save stat
+statWriter = CSVWriter("statnetwork")
+statWriter.prepare(['timestamp','device-id', 'httpLatency', 'failedMsgTX', 'totalMsgTX', 'failedMsgRX', 'totalMsgRX'])
 
 ## NETWORK
 MAIN_NET = None
@@ -115,8 +118,17 @@ def __sendWorker():
                          'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX}
             near_objects.append(stat_data)
             #if near_objects != [{}, {}]:
-        
+
+            data_network= {}
+            data_network['timestamp'] = time.time()
+            data_network['device-id'] = config.get('general', 'device_id')
+            data_network['httpLatency'] = stat_data['httpLatency']
+            data_network['failedMsgTX'] = stat_data['failedMsgTX']
+            data_network['totalMsgTX'] = stat_data['totalMsgTX']
+            data_network['failedMsgRX'] = stat_data['failedMsgRX']
+            data_network['totalMsgRX'] = stat_data['totalMsgRX']
             serialized_objects = json.dumps(near_objects)
+            statWriter.saveSample(data_network)
             q_phone_in.put(serialized_objects)
 
 
@@ -142,6 +154,7 @@ def stop(*args):
     if ALT_NET:
         logger.debug("Waiting for alt network to stop...")
         ALT_NET.stop()
+    statWriter.end()
     logger.debug("Waiting for send worker to stop...")
     t.join()
 
