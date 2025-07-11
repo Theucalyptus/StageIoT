@@ -106,13 +106,13 @@ class Phone(Sensor):
                     logger.info("sending " + str(data))
                     websocket.send(data)
 
-                    data = websocket.recv(timeout=None)
-                    #logger.info("received " + str(data))
-                    try:
-                        deserialized = json.loads(data)
-                        self.newSampleHandler(deserialized)
-                    except json.JSONDecodeError as e:
-                        logger.warning("received malformed data " + str(e))
+                data = websocket.recv(timeout=None)
+                #logger.info("received " + str(data))
+                try:
+                    deserialized = json.loads(data)
+                    self.newSampleHandler(deserialized)
+                except json.JSONDecodeError as e:
+                    logger.warning("received malformed data " + str(e))
             websocket.close()
         except ConnectionClosedError:
             logger.info("connection closed unexpectedly")
@@ -124,7 +124,7 @@ class Phone(Sensor):
 
     def __run(self):
         logger.info("websocket server listening on port " + str(Phone.PORT))
-        self.__server  = serve(self.__conn_handler, "0.0.0.0", Phone.PORT)
+        self.__server  = serve(self.__conn_handler, "0.0.0.0", Phone.PORT, ping_interval=5, ping_timeout=5)
         self.__server.serve_forever()
 
     def run(self):

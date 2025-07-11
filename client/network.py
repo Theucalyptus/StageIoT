@@ -193,6 +193,7 @@ class HTTPService:
                 return NEARBY_DEFAULT.copy()
             else:
                 logger.warning("http received unexpected status code " + str(r.status_code))
+                return NEARBY_DEFAULT.copy()
         except (ConnectionError, ReadTimeout) as e:
             logger.error("http receive failed: " + str(e))
             self.isUp = False

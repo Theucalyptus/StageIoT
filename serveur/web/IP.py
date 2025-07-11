@@ -262,9 +262,11 @@ def __refreshObjectCache(OBJECT_PERSISTANCE=15):
         Remove from cache all objects whose last update was more than OBJECT_PERSISTANCE seconds ago.
     """
     # OBJECT PERSISTANCE
-    OBJECT_PERSISTANCE = Config["time_persistance"]
+    OBJECT_PERSISTANCE = float(Config["time_persistance"])
+
+    global lastRefresh
     now = time.time()
-    if lastRefresh and lastRefresh + 1 < now:
+    if (lastRefresh and lastRefresh + 1 < now) or (lastRefresh == None):
         try:
             for device in __queryAllDeviceIDs():
                 if device in objects_storage:
@@ -274,8 +276,9 @@ def __refreshObjectCache(OBJECT_PERSISTANCE=15):
                         if data['timestamp'] + OBJECT_PERSISTANCE < now:
                             toRemove.append(k)
                     for k in toRemove:
-                        print("deveice", device, "object", k, "remove from cache due to lack of update")
+                        #print("deveice", device, "object", k, "remove from cache due to lack of update")
                         objs.pop(k)
+            lastRefresh = now
         except (RuntimeError):
             logging.error("FIXME: __refreshObjectCache not thread safe (dictionnary changed size during iteration) when multiple http requests call simultaneously")
     else:

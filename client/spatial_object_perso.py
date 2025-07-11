@@ -8,6 +8,7 @@ import time
 import sensors
 import cv2, depthai as dai, numpy as np    # ← ton module
 import logging
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def get_latitude_longitude(lat, long, azimuthDeg, z, x):
 
 def construire_msg(tracked_objs, lat, long, azimuth):
     data = {
-        "device-id": "jetson1",
+        "device-id": config.get("general", "device_id"),
         "type": 2,
         "timestamp": time.time(),
         "objects": []
