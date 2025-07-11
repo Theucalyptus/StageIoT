@@ -67,7 +67,7 @@ def __enableNetInterface(interface, q_in, q_out):
             http_service.run()
             return http_service
         else:
-            print("config error: invalide network interface:", interface)
+            logger.critical("config: invalide network interface:", interface)
             exit(1)
     else:
         return None
@@ -99,13 +99,13 @@ def __sendWorker():
             now = time.time() 
             message['timestamp'] = now
             if MAIN_NET.isUp and now >= lastSendTime+MAIN_NET.time_between_send-1:
-                lastSentData = message.copy()
-                q_netMain_in.put(lastSentData)
+                lastSentData = message.copy() # copy to compare with next message
+                q_netMain_in.put(lastSentData.copy()) # send a copy, because aliasing + the network service may edit the message
                 lastSendTime = now
             elif ALT_NET != None and ALT_NET.isUp:
                 if now >= lastSendTime+ALT_NET.time_between_send-1:
                     lastSentData = message.copy()
-                    q_netAlt_in.put(lastSentData)
+                    q_netAlt_in.put(lastSentData.copy())
                     lastSendTime = now
                 else:
                     pass

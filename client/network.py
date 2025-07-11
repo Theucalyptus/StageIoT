@@ -140,7 +140,7 @@ class HTTPService:
                     # perform conn check
                     r = requests.get(HTTPService.connCheckUrl, timeout=HTTPService.timeout) # sends back the current server time
                     serverTime = float(r.text)
-                    print("time gap", abs(time.time() - serverTime))
+                    logger.debug("time gap", abs(time.time() - serverTime))
                     self.isUp = True
                 except:                    
                     logger.info('http service awaiting for internet')
@@ -186,7 +186,6 @@ class HTTPService:
             if r.status_code == 200:
                 data = r.json()
                 #logger.info("http received " + str(data))
-                print(data)
                 return data
             elif r.status_code == 204 or r.status_code == 404:
                 return NEARBY_DEFAULT
@@ -202,6 +201,6 @@ class HTTPService:
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
             rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
             txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
-            print("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
+            logger.info("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
         self.stopVar = True
         self.thread.join()
