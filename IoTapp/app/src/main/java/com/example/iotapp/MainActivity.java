@@ -82,6 +82,8 @@ public class MainActivity extends AppCompatActivity {
     TextView tSocket;
     TextView sData;
 
+    TextView txtStat;
+
     private boolean sockPossible= false;
 
 
@@ -133,6 +135,8 @@ public class MainActivity extends AppCompatActivity {
 
     private String disp_stat="";
 
+    private String disp;
+
 
 
     private Lock lock = new ReentrantLock();
@@ -145,61 +149,76 @@ public class MainActivity extends AppCompatActivity {
     private void displayNbor() throws JSONException {
         
         lockData.lock();
-        runOnUiThread(()->{
-            dataView.setText("");
-        });
+            //dataView.setText("");
 
-        for(String s: dataList){
-            List<JSONObject> obj= stringToJson(s);
-            for(JSONObject o : obj){
+            disp = "";
+            for(String s: dataList) {
+                List<JSONObject> obj = stringToJson(s);
+                for (JSONObject o : obj) {
 
-                String emoji;
-                String label = o.has("label")? o.getString("label") : "undefined";
-                String seenby = o.has("seenby") ? o.getString("seenby"): "";
-                switch (label) {
-                    case "person":
-                        emoji = "🧍";
-                        break;
-                    case "car":
-                        emoji = "🚗";
-                        break;
-                    case "bicycle":
-                        emoji = "🚲";
-                        break;
-                    case "bus":
-                        emoji = "🚌";
-                        break;
-                    default:
-                        emoji = "❓";
-                        break;
+                    String emoji;
+                    String label = null;
+                    String seenby = null;
+                    try {
+                        label = o.has("label") ? o.getString("label") : "undefined";
+                        seenby = o.has("seenby") ? o.getString("seenby") : "";
+                    } catch (JSONException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    switch (label) {
+                        case "person":
+                            emoji = "🧍";
+                            break;
+                        case "car":
+                            emoji = "🚗";
+                            break;
+                        case "bicycle":
+                            emoji = "🚲";
+                            break;
+                        case "bus":
+                            emoji = "🚌";
+                            break;
+                        default:
+                            emoji = "❓";
+                            break;
+                    }
+
+                    double dist = 0;
+                    String arrow = null;
+                    String id = null;
+
+                    try {
+                        dist = haversine(lastLat, lastLon, (double) o.get("latitude"), (double) o.get("longitude"));
+                        arrow = getArrowFromLocation(lastOrientation, lastLat, lastLon, (double) o.get("latitude"), (double) o.get("longitude"));
+                        id = o.has("id") ? o.getString("id") : o.getString("device-id");
+                        disp = disp + emoji + ": " + id + " | Seen by: " + seenby + " | Distance: " + String.format("%.2f", dist) + " | Dir : " + arrow + " \n";
+
+                    } catch (JSONException e) {
+                        throw new RuntimeException(e);
+                    }
+
                 }
-
-                double dist= haversine(lastLat,lastLon,(double)o.get("latitude"), (double)o.get("longitude"));
-                String arrow= getArrowFromLocation(lastOrientation,lastLat,lastLon,(double)o.get("latitude"), (double)o.get("longitude"));
-                String id = o.has("id")? o.getString("id") : o.getString("device-id");
-                String disp= dataView.getText() + emoji + ": " + id + " Seen by: " + seenby + " Distance: "+ String.format("%.2f", dist)+ " Dir : "+ arrow+" \n";
-
-
-                runOnUiThread(()->{
-
-                    dataView.setText(disp);
-
-                });
-
-                Log.d("AFFICHAGE", emoji);
-
             }
 
+            runOnUiThread(()->{
+                dataView.setText(disp);
+            });
 
-        }
+                //Log.d("AFFICHAGE", emoji);
+
+            //}
+
+        //}
         //String disp_stat="";
         double latence;
         double ratio_rx=0.0;
         double ratio_tx=0.0;
 
-        Log.d("ICI", stat.toString());
+
         if(stat!=null){
-            latence= stat.getDouble("networkLatency");
+            Log.d("ICI", stat.toString());
+            latence= stat.getDouble("networkLatency") * 100;
             double fMsgTx= stat.getDouble("failedMsgTX");
             double fMsgRx = stat.getDouble("failedMsgRX");
             double tMsgTx = stat.getDouble(("totalMsgTX"));
@@ -208,11 +227,11 @@ public class MainActivity extends AppCompatActivity {
             ratio_rx = (tMsgRx==0.0) ? ratio_rx: 100 * (1-(fMsgRx/tMsgRx));
             ratio_tx = (tMsgTx==0.0) ? ratio_tx: 100 * (1-(fMsgTx/tMsgTx));
 
-            disp_stat= "Latence http : "+ String.format(".%4f",latence) + " sec | Succes Rx : " + ratio_rx + "% | Succes tx : " + ratio_tx + "%";
+            disp_stat= "Latence http : "+ (int) latence + " ms | Succes Rx : " + String.format("%.2f",ratio_rx) + "% | Succes tx : " + String.format("%.2f",ratio_tx) + "%";
         }
 
         runOnUiThread(()->{
-            dataView.setText("\n\n\n"+dataView.getText() + disp_stat + "\n");
+            txtStat.setText("Stat réseau :\n"+ disp_stat);
         });
         dataList.clear();
         lockData.unlock();
@@ -231,6 +250,8 @@ public class MainActivity extends AppCompatActivity {
             JSONArray ar= new JSONArray(jsonString);
             JSONObject obj= ar.getJSONObject(0);
             stat= ar.getJSONObject(2);
+
+            Log.d("STAT", "STAT_REMPLI");
 
 
             Log.d("STAT", stat.toString());
@@ -355,6 +376,9 @@ public class MainActivity extends AppCompatActivity {
 
         fieldIP = findViewById(R.id.ip_adress);
         fieldPort = findViewById(R.id.port);
+
+        fieldIP.setText("10.42.0.1");
+        fieldPort.setText("6789");
         btnConnectWifi = findViewById(R.id.wifi);
         confirm = findViewById(R.id.confIP);
 
@@ -374,7 +398,7 @@ public class MainActivity extends AppCompatActivity {
         tSocket.setText(R.string.no_co_sock);
         sData= findViewById(R.id.sendData);
         txtPos= findViewById(R.id.txtPos);
-
+        txtStat= findViewById(R.id.txtStat);
 
 
         updatePos();
@@ -448,10 +472,13 @@ public class MainActivity extends AppCompatActivity {
                 if (!(text.equals("null"))) {
                     dataList.add(text);
                 }
-                Log.d("DATALIST", dataList.toString());
+
                 lockData.unlock();
+                Log.d("DATALIST", dataList.toString());
+
                 try {
                     displayNbor();
+
                 } catch (JSONException e) {
                     Log.e("ERREUR_AFFICHAGE", e.getMessage());
                 }
@@ -472,6 +499,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
                 webSocket.close(1000, null);
+                runOnUiThread(()->{
+                    tSocket.setText(R.string.no_co_sock);
+                    sData.setText("");
+                });
                 isSocketConnected = false;
                 sockPossible=false;
                 Log.d("WEBSOCKET", "Fermeture : " + reason);
@@ -543,7 +574,7 @@ public class MainActivity extends AppCompatActivity {
 
                             //displayNbor();
 
-                            //Log.d("WEBSOCKET", "JSON envoyé : " + message);
+                            Log.d("WEBSOCKET", "JSON envoyé : " + message);
                         } catch (Exception e) {
                             Log.e("WEBSOCKET", "Erreur JSON : " + e.getMessage());
                         }
@@ -620,10 +651,10 @@ public class MainActivity extends AppCompatActivity {
         Log.d("main", "onResume called");
         startLocationUpdates();
 
-        //if(checkWifiConnection()) {
+        if(checkWifiConnection() && sockPossible) {
 
-        if(sockPossible) connectWebSocket();
-        //}
+            connectWebSocket();
+        }
     }
 
     private double haversine(double lat1, double lon1,
