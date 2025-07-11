@@ -413,64 +413,72 @@ def post_data():
 
 
     if request.method == 'POST': 
-        t = time.time()
         # récupérer les données de la requête
         raw_data = request.get_data().decode('utf-8')
         raw_data= raw_data.removesuffix("\n")
         try:
-            data = json.loads(raw_data)
-            
-            # Network delay
-            netDelay = (t - data["timestamp"]) * 1000 # in milliseconds
-            data['netDelay'] = netDelay
-            
-            # Packet Loss
-            current =  data["msgNumber"]
-            if not data['device-id'] in stats_storage:
-                stats_storage[data['device-id']] = {"lastmsgNumber": current, "lossSinceLast":0}
-            else:
-                lastRxNbr = stats_storage[data['device-id']]["lastmsgNumber"]
-                nbLoss = (current - lastRxNbr - 1)%256
-                if nbLoss > 0:
-                    print("detected packet loss", nbLoss, current, lastRxNbr)
-                stats_storage[data['device-id']]["lastmsgNumber"] = current
-                stats_storage[data['device-id']]["lossSinceLast"] += nbLoss
-
-            if data['type'] == MessageTypes.DEVICE_UPDATE:
-                # device status update
-                # save packet loss stat and reset
-                data['packetLoss'] = stats_storage[data['device-id']]["lossSinceLast"]
-                stats_storage[data['device-id']]["lossSinceLast"] = 0
-
-                Q_out.put(data.copy()) #copy because we edit the message before DB insertion
-                add_data_to_cache(data)
-            elif data['type'] == MessageTypes.OBJECT_REPORT:
-                # object observation
-                for object in data['objects']:
-                    object["tempId"] = object.pop("id") # move id as temp id
-                    object["timestamp"]=data['timestamp']
-                    object['seenby']=data['device-id']
-                    if data['device-id'] in objects_storage:
-                        if object["tempId"] in objects_storage[data['device-id']]:
-                            object["id"] = objects_storage[data['device-id']][object["tempId"]]["id"]
-                    # Ajouter les données à la base de données, donne un Id permanent si pas déjà connu
-                    Interface.save_object_DB(object)
-                    if not "id" in object:
-                        return jsonify({"status": "error", "message": "Unknown/Unregistered device"}), 200
-                    # Ajouter les données à la liste d'objets
-                    if data['device-id'] in objects_storage:
-                        objects_storage[data['device-id']][object['tempId']] = object
-                    else:
-                        objects_storage[data['device-id']] = {object['tempId']:object}
-            else:
-                logging.error("Not Implemented message type " + str(data['type']))
-
+            t = time.time()
+            handle_data_message(raw_data)
             return jsonify({"status": "success", "rxDate": t}), 200
         except json.JSONDecodeError:
             print("Received malformed json data")
     else:
         return jsonify({"status": "error", "message": "Invalid method"}), 400 # not a POST request
+
+
+def handle_data_message(raw_data):
+    """
+        Processes a JSON-serialized data message (sensor data / device update and objects messages)
+    """
+    t = time.time()
+    data = json.loads(raw_data)
             
+    # Network delay
+    netDelay = (t - data["timestamp"]) * 1000 # in milliseconds
+    data['netDelay'] = netDelay
+    
+    # Packet Loss
+    current =  data["msgNumber"]
+    if not data['device-id'] in stats_storage:
+        stats_storage[data['device-id']] = {"lastmsgNumber": current, "lossSinceLast":0}
+    else:
+        lastRxNbr = stats_storage[data['device-id']]["lastmsgNumber"]
+        nbLoss = (current - lastRxNbr - 1)%256
+        if nbLoss > 0:
+            print("detected packet loss", nbLoss, current, lastRxNbr)
+        stats_storage[data['device-id']]["lastmsgNumber"] = current
+        stats_storage[data['device-id']]["lossSinceLast"] += nbLoss
+
+    if data['type'] == MessageTypes.DEVICE_UPDATE:
+        # device status update
+        # save packet loss stat and reset
+        data['packetLoss'] = stats_storage[data['device-id']]["lossSinceLast"]
+        stats_storage[data['device-id']]["lossSinceLast"] = 0
+
+        Q_out.put(data.copy()) #copy because we edit the message before DB insertion
+        add_data_to_cache(data)
+    elif data['type'] == MessageTypes.OBJECT_REPORT:
+        # object observation
+        for object in data['objects']:
+            object["tempId"] = object.pop("id") # move id as temp id
+            object["timestamp"]=data['timestamp']
+            object['seenby']=data['device-id']
+            if data['device-id'] in objects_storage:
+                if object["tempId"] in objects_storage[data['device-id']]:
+                    object["id"] = objects_storage[data['device-id']][object["tempId"]]["id"]
+            # Ajouter les données à la base de données, donne un Id permanent si pas déjà connu
+            Interface.save_object_DB(object)
+            if not "id" in object:
+                return jsonify({"status": "error", "message": "Unknown/Unregistered device"}), 200
+            # Ajouter les données à la liste d'objets
+            if data['device-id'] in objects_storage:
+                objects_storage[data['device-id']][object['tempId']] = object
+            else:
+                objects_storage[data['device-id']] = {object['tempId']:object}
+    else:
+        logging.error("Not Implemented message type " + str(data['type']))
+
+    
 def add_data_to_cache(data):
     """
     Add data to the cache based on the 'eui' value in the data dictionary.

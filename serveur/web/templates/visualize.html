@@ -42,6 +42,8 @@
                 <option value="2678400">1 month</option>
             </select>
             
+            <button id="pause" class="btn btn-primary" onclick="pauseResumeUpdates()">Pause</button>
+            
         </div>
         <div id="dataDisplay" class="mt-4"></div>
         <div id="fieldsToggle" class="mt-4">
@@ -213,8 +215,24 @@
             console.error('There was a problem with the fetch operation:', error);
         });
         createChart();
-        setInterval(fetchData, 1000);
+        
+        let updateIntervalID = null;
     
+        function pauseResumeUpdates() {
+            console.log("pause/resume called");
+            if (updateIntervalID != null) {
+                console.log("Pausing updates");
+                clearInterval(updateIntervalID);
+                updateIntervalID = null;
+                document.getElementById('pause').innerHTML = "Resume";
+            } else {
+                console.log("Resuming updates")
+                updateIntervalID = (setInterval(fetchData, 2000)) // update every 2 seconds
+                document.getElementById('pause').innerHTML = "Pause";
+            }
+        }
+        pauseResumeUpdates();
+
         // Add event listeners to checkboxes
         document.querySelectorAll('input[name="fields"]').forEach(checkbox => {
             checkbox.addEventListener('change', updateChartVisibility);

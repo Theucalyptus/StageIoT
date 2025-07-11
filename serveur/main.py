@@ -5,6 +5,7 @@ from queue import Queue
 import mysql.connector
 import Interface
 import MQTT
+import WebSocket as WS
 import web.IP as IP
 import utils
 import os
@@ -129,7 +130,9 @@ def run_server():
 
     #Queues and nodes parameters
     Q_Lora = Queue()
-    Q_4G = Queue()
+    Q_4g = Queue()
+    Q_ws = Queue()
+
     coordsTTN = {
         'mqtt_username' :Config["APP_username"],
         'password' : Config["APP_password"],
@@ -138,18 +141,22 @@ def run_server():
     }
     # création des threads
     threadMQTT = threading.Thread(target=MQTT.MQTTnode,args=[coordsTTN,Q_Lora], daemon=True)
-    threadIf = threading.Thread(target=Interface.Ifnode,args=[Q_Lora,Q_4G,Config], daemon=True)
-    threadIP = threading.Thread(target=IP.IPnode,args=[Q_4G,Config], daemon=True)
+    threadIf = threading.Thread(target=Interface.Ifnode,args=[Q_Lora,Q_4g, Q_ws,Config], daemon=True)
+    threadIP = threading.Thread(target=IP.IPnode,args=[Q_4g,Config], daemon=True)
+    threadWS = threading.Thread(target=WS.WSnode,args=[Config, Q_ws], daemon=True)
+
 
     # start les threads
     try:
         threadMQTT.start()
         threadIP.start()
         threadIf.start()
+        threadWS.start()
 
         threadIf.join()
         threadIP.join()
         threadMQTT.join()
+        threadWS.join()
 
     except (KeyboardInterrupt, SystemExit):
         stop_server()

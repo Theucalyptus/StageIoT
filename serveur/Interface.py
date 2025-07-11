@@ -128,7 +128,6 @@ def save_object_DB(object):
         object["id"] = res[0]
 
 
-
 def data_LoRa_handler(message,device):
     deviceid = __getDeviceIDFromEUI(device)
     if deviceid != None:
@@ -178,7 +177,11 @@ def Web_msg_handler(data_sample):
     else:
         print("device "+device+" not registered, ignoring.")
     
-def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
+def WS_msg_handler(message):
+    requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=message)
+
+
+def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_websocket: Queue, Config_):
     global Config, db1, c1, db2, c2
     print("Starting Interface node")
     Config=Config_
@@ -193,14 +196,14 @@ def Ifnode(Q_Lora : Queue, Q_web : Queue, Config_):
 
     while True:
         try:
-            while Q_Lora.empty() and Q_web.empty():
+            while Q_Lora.empty() and Q_web.empty() and Q_websocket.empty():
                 time.sleep(0.002)
             if not Q_Lora.empty():
-                message = Q_Lora.get()
-                LoRa_msg_handler(message)
+                LoRa_msg_handler(Q_Lora.get())
             if not Q_web.empty():
-                message = Q_web.get()
-                Web_msg_handler(message)
+                Web_msg_handler(Q_web.get())
+            if not Q_websocket.empty():
+                WS_msg_handler(Q_websocket.get())
         except Exception as e:
             print("Interface: ERROR:", e)
 

@@ -105,18 +105,14 @@ class Phone(Sensor):
                     data = self.q_in.get()
                     logger.info("sending " + str(data))
                     websocket.send(data)
-                try:
-                    data = websocket.recv(timeout=0)
+
+                    data = websocket.recv(timeout=None)
                     #logger.info("received " + str(data))
                     try:
                         deserialized = json.loads(data)
                         self.newSampleHandler(deserialized)
                     except json.JSONDecodeError as e:
                         logger.warning("received malformed data " + str(e))
-
-
-                except TimeoutError:
-                    pass
             websocket.close()
         except ConnectionClosedError:
             logger.info("connection closed unexpectedly")

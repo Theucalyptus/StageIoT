@@ -66,6 +66,10 @@ def __enableNetInterface(interface, q_in, q_out):
             http_service = network.HTTPService(q_in, q_out)
             http_service.run()
             return http_service
+        elif interface=="websocket":
+            ws_service = network.WebSocketService(q_in, q_out)
+            ws_service.run()
+            return ws_service
         else:
             logger.critical("config: invalide network interface:", interface)
             exit(1)

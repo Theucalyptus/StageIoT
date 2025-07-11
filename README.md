@@ -36,7 +36,7 @@ See [server.md](doc/server.md) for information about the server's software, how 
     - measures the network delay for all type of messages, and saves it in the database for device update messages (`netDelay` column in the database)
     - packet loss for each device (total packet loss, combination of all networks* and for all messages), and logged in the device data (total number of lost packets between two successful device update messages) (`packetLoss` column in the database)
 
-Note: because we use a TCP-like approach at packet loss detection, if using multiple network simultaneously, packets can arrive out-of-order and would be counted as packet-loss even though they have been received and processed.
+Note: because we use a message number (modulo 256) to detect package loss, if using multiple network simultaneously, packets may arrive out-of-order and would be counted as packet-loss, even though they have been received and processed.
 
 ## Details
 
@@ -59,6 +59,9 @@ The client allows for two networks to be used: one main and a backup/alternative
 * NOTE: only the http network service can detect if it's online or not. LoRaWAN doesn't provide an easy way to now if the network is up, as we would need to use confirmed messages, which are limited in number because they required downlink communication. We assume that LoRa is always up, as a "best effort" backup solution.
 
 For static devices, LoRa could would be suitable for infrequent status update, while a more capable network could be used for important, real-time data.
+
+### Android Application
+The provided Android app is used to gather data from the smartphone's sensors (GPS location, orientation data) and send them to the 
 
 ## Possible Improvements:
 1. ~~Redo device edit/list page to show lora eui if present~~ DONE (31008e87991f8ac9bcb3403117db5f9f2508782d)

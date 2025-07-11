@@ -3,10 +3,12 @@ import logging
 import threading
 import requests
 from config import config
-from requests.exceptions import ConnectionError, ReadTimeout
+from requests.exceptions import *
 import json
 import time
 from common import lora
+from websockets.sync.client import connect
+from websockets.exceptions import *
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +92,7 @@ class UartService:
         This method is not implemented for UART service.
         """
         logger.warning("uart service does not support getNearbyObjects")
-        return NEARBY_DEFAULT
+        return NEARBY_DEFAULT.copy()
 
     def stop(self):
         self.stopVar = True
@@ -174,7 +176,7 @@ class HTTPService:
     def getNearbyObjects(self):
         if not self.isUp:
             logger.warning("http service is down. Cannot receive data")
-            return NEARBY_DEFAULT
+            return NEARBY_DEFAULT.copy()
         
         try:
             self.totalMsgRX += 1
@@ -188,19 +190,105 @@ class HTTPService:
                 #logger.info("http received " + str(data))
                 return data
             elif r.status_code == 204 or r.status_code == 404:
-                return NEARBY_DEFAULT
+                return NEARBY_DEFAULT.copy()
             else:
                 logger.warning("http received unexpected status code " + str(r.status_code))
         except (ConnectionError, ReadTimeout) as e:
             logger.error("http receive failed: " + str(e))
             self.isUp = False
             self.failedMsgRX+=1
-            return NEARBY_DEFAULT
+            return NEARBY_DEFAULT.copy()
 
     def stop(self):
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
             rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
             txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
             logger.info("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
+        self.stopVar = True
+        self.thread.join()
+
+
+class WebSocketService:
+
+    host = config.get('network.websocket', 'host')
+    port = config.get('network.websocket', 'port')
+
+    baseUrl = "ws://"+host+":"+port
+
+    time_between_send = config.getfloat('network.websocket', 'time_between_send')
+
+
+    def __init__(self, q_in, q_out):
+
+        self.q_in = q_in
+        self.q_out = q_out
+
+        self.__conn = None
+
+        self.stopVar = False
+        self.isUp = False
+        self.lastConnCheck = None
+
+        self.failedMsgTX = 0
+        self.totalMsgTX = 0
+        self.failedMsgRX = 0
+        self.totalMsgRX = 0
+        self.networkLatency=0
+        
+
+    def run(self):
+        logger.info("websocket service running with endpoint " + WebSocketService.baseUrl)
+        self.thread = threading.Thread(target=self.__run)
+        self.thread.start()
+
+    def __run(self):
+        while not self.stopVar:
+            # check for connectivity
+            while not self.isUp and not self.stopVar:
+                try:
+                    # try to connect
+                    self.__conn = connect(WebSocketService.baseUrl)
+                    self.isUp = True
+                except Exception as e:                    
+                    logger.info('websocket could not connect. awaiting for internet ' + str(e))
+                    time.sleep(5)
+
+            # connection is UP
+            if not self.q_in.empty():
+                self.__send(self.q_in.get())
+
+        # close the connection when stopping
+        self.__conn.close()
+                
+
+    def __send(self, msg):
+        global MSG_NUMBER
+        msg['msgNumber'] = (MSG_NUMBER % 256)
+        MSG_NUMBER += 1
+        serialized = json.dumps(msg)
+        try:
+            logger.info("websocket sending " + serialized)
+            self.totalMsgTX+=1
+            self.__conn.send(serialized, text=True)        
+        except ConnectionClosed:
+            self.failedMsgTX+=1
+            self.isUp = False # connection seems to be down
+            self.q_in.put(msg) # re-adding the message to the queue
+            logger.warning("websocket send failed (connection closed). Network may be down")
+
+    def getNearbyObjects(self):
+        """ 
+        Returns a list of nearby objects detected by the device.
+        This method is not implemented for WebSocket service.
+        """
+        logger.warning("websocket service does not support getNearbyObjects")
+        return NEARBY_DEFAULT.copy()
+
+    def stop(self):
+        if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
+            rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
+            txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
+            logger.info("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
+        
         self.stopVar = True
         self.thread.join()
