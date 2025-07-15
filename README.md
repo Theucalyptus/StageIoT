@@ -10,7 +10,7 @@ We also provide a Android app allowing a phone to be used as a sensor by the cli
 ## Main features
 - Data collection with an embedded system and external sensors
 - Cooperative Perception*: systems can signal obstacles, and others can query for nearby obstacles
-- Data transmission to a server using mobile network or LoRa
+- Data transmission to a server using mobile network (via HTTP or WebSockets) or LoRa
 - Live data visualization through a web app.
 - Data access API
 - Benchmarking & measures: the platform measure all sorts of things about itself and its performance, like network usage, latency and reliability

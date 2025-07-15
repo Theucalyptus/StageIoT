@@ -52,11 +52,12 @@ class CSVWriter:
     def saveSample(self, sampleDict):
         data = sampleDict.values()
         #logger.info("saving sample")
-        self.csv_writer.writerow(data)
-        self.outFile.flush() # kind of a hack, idealy we would not flush each time
-                             # and properly close the file at the end, but for now
-                             # we don't hava a way to gracefully close the sensors'
-                             # threads
+        if not self.outFile.closed:
+            self.csv_writer.writerow(data)
+            self.outFile.flush() # kind of a hack, idealy we would not flush each time
+                                # and properly close the file at the end, but for now
+                                # we don't hava a way to gracefully close the sensors'
+                                # threads
 
     def end(self):
         logger.info("csvwriter flushing to disk.")

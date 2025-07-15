@@ -20,6 +20,11 @@ PIX_SEND_THRESHOLD = 40    # px  – déplacement min avant de ré‑émettre
 LOST_TIMEOUT       = 2.0   # s   – purge si plus vu depuis X sec
 SEND_PERIOD        = 1.0   # s   – cadence d’envoi
 
+LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus","car",
+        "cat","chair","cow","diningtable","dog","horse","motorbike","person",
+        "pottedplant","sheep","sofa","train","tvmonitor"]
+IMPORTANT = {"bicycle","bus","car","horse","motorbike","person"}
+
 # ---------- 2. Objet suivi -------------------------------------------------
 class Tracked:
     def __init__(self, obj_id, label, cx, cy, xyz):
@@ -56,7 +61,9 @@ def get_latitude_longitude(lat, long, azimuthDeg, z, x):
     R = 6371000
     blat = math.degrees(distLat / R)
     blong = math.degrees(distLong / R)
-    return lat+blat, long+blong
+    olat = lat+blat
+    olong = long+blong
+    return olat, olong
 
 def construire_msg(tracked_objs, lat, long, azimuth):
     data = {
@@ -67,14 +74,15 @@ def construire_msg(tracked_objs, lat, long, azimuth):
     }
 
     for obj in tracked_objs:
+        if obj.label in IMPORTANT:
                                                                 #z          #x
-        lat,lon= get_latitude_longitude(lat, long, azimuth, obj.xyz[2], obj.xyz[0])
-        data["objects"].append({
-            "latitude": lat,
-            "longitude": lon,
-            "label": obj.label,
-            "id": obj.id
-        })
+            lat,lon= get_latitude_longitude(lat, long, azimuth, obj.xyz[2], obj.xyz[0])
+            data["objects"].append({
+                "latitude": lat,
+                "longitude": lon,
+                "label": obj.label,
+                "id": obj.id
+            })
 
     return data
 
@@ -105,11 +113,6 @@ class Camera:
         blob = Path(__file__).with_name("mobilenet-ssd_openvino_2021.4_6shave.blob")
         if not blob.exists():
             raise FileNotFoundError(blob)
-
-        LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus","car",
-                "cat","chair","cow","diningtable","dog","horse","motorbike","person",
-                "pottedplant","sheep","sofa","train","tvmonitor"]
-        IMPORTANT = {"bicycle","bus","car","horse","motorbike","person"}
 
         # ---- pipeline ---------------------------------------------------
         pipe = dai.Pipeline()

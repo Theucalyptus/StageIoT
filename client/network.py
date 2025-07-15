@@ -27,6 +27,8 @@ class UartService:
     DELIMITER = bytes('\n\n\n\n', 'utf-8')
 
     time_between_send = config.getfloat('network.uart', 'time_between_send')
+    latency = config.getint('network.uart', 'latency')
+
 
     def __init__(self, q_in, q_out):
         global config
@@ -68,6 +70,7 @@ class UartService:
         logger.info("uart sending " + str(msg))
         try:
             data = lora.data_to_lora(msg)
+            time.sleep(UartService.latency / 1000)
             #logger.info("uart sending " + str(data))
             self.serial.write(data + UartService.DELIMITER)
         except lora.MissingDataField:
@@ -112,6 +115,7 @@ class HTTPService:
 
     time_between_send = config.getfloat('network.http', 'time_between_send')
 
+    latency = config.getint('network.http', 'latency')
 
     def __init__(self, q_in, q_out):
 
@@ -162,6 +166,7 @@ class HTTPService:
         logger.info("http sending " + serialized)
         try:
             self.totalMsgTX+=1
+            time.sleep(HTTPService.latency / 1000)
             resp = requests.post(HTTPService.pushUrl, data=serialized, timeout=HTTPService.timeout)
             logger.info("HTTP Tx latency {:.2f}".format(resp.json()['rxDate'] - msg['timestamp']) + "s")
         except ConnectionError:
@@ -181,6 +186,7 @@ class HTTPService:
         try:
             self.totalMsgRX += 1
             before = time.time()
+            time.sleep(HTTPService.latency / 1000)
             r = requests.get(HTTPService.getObjURL, timeout=HTTPService.timeout)
             after = time.time()
             self.networkLatency = after - before
@@ -204,7 +210,7 @@ class HTTPService:
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
             rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
             txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
-            logger.info("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
+            logger.info("RX: {:0.2f}%".format(rxSp) + " TX: {:0.2f}%".format(txSp))
         self.stopVar = True
         self.thread.join()
 
@@ -217,6 +223,8 @@ class WebSocketService:
     baseUrl = "ws://"+host+":"+port
 
     time_between_send = config.getfloat('network.websocket', 'time_between_send')
+
+    latency = config.getint('network.websocket', 'latency')
 
 
     def __init__(self, q_in, q_out):
@@ -270,6 +278,7 @@ class WebSocketService:
         try:
             logger.info("websocket sending " + serialized)
             self.totalMsgTX+=1
+            time.sleep(WebSocketService.latency / 1000)
             self.__conn.send(serialized, text=True)        
         except ConnectionClosed:
             self.failedMsgTX+=1
@@ -289,7 +298,7 @@ class WebSocketService:
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
             rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
             txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
-            logger.info("RX %: {:0.2f}".format(rxSp), "TX %: {:0.2f}".format(txSp))
+            logger.info("RX % : {:0.2f}".format(rxSp), "TX % : {:0.2f}".format(txSp))
         
         self.stopVar = True
         self.thread.join()
