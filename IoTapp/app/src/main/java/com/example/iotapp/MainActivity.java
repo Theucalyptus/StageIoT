@@ -408,6 +408,7 @@ public class MainActivity extends AppCompatActivity {
 
         sender = new SenderThread();
         sender.start();
+
     }
 
 
@@ -445,6 +446,8 @@ public class MainActivity extends AppCompatActivity {
      * Connect to the platform using websocket API, useful for sending all the collected data
      */
     private void connectWebSocket() {
+
+        Context c= this;
         if (isSocketConnected) return;
 
         client = new OkHttpClient();
@@ -493,7 +496,12 @@ public class MainActivity extends AppCompatActivity {
                     tSocket.setText(R.string.no_co_sock);
                     sData.setText("");
                 });
-                exit(1);
+                //exit(1);
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    Toast.makeText(c, "WebSocket failure" , Toast.LENGTH_SHORT).show();
+                });
+                //Toast.makeText(c, "Websocket failure", Toast.LENGTH_SHORT).show();
+
             }
 
             @Override
@@ -505,7 +513,7 @@ public class MainActivity extends AppCompatActivity {
                 });
                 isSocketConnected = false;
                 sockPossible=false;
-                Log.d("WEBSOCKET", "Fermeture : " + reason);
+                Log.d("WEBSOCKETCLOSE", "Fermeture : " + reason);
             }
         });
     }
