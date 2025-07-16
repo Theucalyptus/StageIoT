@@ -283,7 +283,7 @@ def __queryAllDeviceIDs():
     return devlist
 
 lastRefresh = None
-def __refreshObjectCache(OBJECT_PERSISTANCE=15):
+def __refreshObjectCache():
     """
         Remove from cache all objects whose last update was more than OBJECT_PERSISTANCE seconds ago.
     """

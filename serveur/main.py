@@ -132,7 +132,7 @@ def run_server():
     Q_Lora = Queue()
     Q_4g = Queue()
     Q_ws_out = Queue()
-    Q_ws_in = Queue()
+    Q_ws_in = {}
 
     coordsTTN = {
         'mqtt_username' :Config["APP_username"],

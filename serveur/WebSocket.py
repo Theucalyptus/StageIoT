@@ -1,19 +1,26 @@
 from queue import Queue, Empty
 from websockets.sync.server import serve
 from websockets.exceptions import *
-import logging
 import time
 import json
 
-logger = logging.getLogger(__name__)
 
-Q_output, Q_ing=None, None
+
+Q_output, Q_in_dict=None, None
 stopVar=False
 
+next_connection_id=0
+
 def conn_handler(websocket):
-    print("Connection opened")
-    
+    global next_connection_id
+
+    id = next_connection_id
+    next_connection_id+=1
+    print("connection opened id " + str(id))
     global stopVar
+    
+    Q_in_dict[id] = Queue()
+    
     try:
         while not stopVar:
             try:
@@ -23,34 +30,34 @@ def conn_handler(websocket):
                 # if we have a sending timestamp, compute network delay
                 if "timestamp" in data: 
                     data["netDelay"] = (t - data["timestamp"]) * 1000
-                Q_output.put(data)
+                Q_output.put((id, data))
             except TimeoutError:
                 pass
             try:
-                if not Q_ing.empty():
-                    data = Q_ing.get_nowait()
+                if not Q_in_dict[id].empty():
+                    data = Q_in_dict[id].get_nowait()
                     websocket.send(data, text=True)
             except Empty:
                 pass # Q_ing.empty() does not guarentee that .get() will instantly return
                      # so we use get_nowait and catch, as we don't want to stall the thread
         websocket.close()
     except ConnectionClosedError:
-        logger.info("connection closed unexpectedly")
+        print("connection closed unexpectedly")
     except ConnectionClosedOK:
-        logger.info("connection closed by pair ok")
+        print("connection closed by pair ok")
     except TimeoutError:
-        logger.info("connection timeout")
+        print("connection timeout")
 
 
-    print("Connection ended")
+    print("Connection ended id " + str(id))
 
-def WSnode(config, Q_out : Queue, Q_in: Queue):
+def WSnode(config, Q_out : Queue, Q_in):
     
     print("Starting WebSocket node")
     global Q_output
-    global Q_ing
+    global Q_in_dict
     Q_output = Q_out
-    Q_ing = Q_in
+    Q_in_dict = Q_in
     
     try:
         p = int(config["ws_port"])

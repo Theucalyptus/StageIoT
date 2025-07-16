@@ -178,17 +178,19 @@ def Web_msg_handler(data_sample):
     else:
         print("device "+device+" not registered, ignoring.")
     
-def WS_msg_handler(message, Q_ws_in: Queue):
-    if int(message["type"]) == MessageTypes.NEARBY_REQUEST:
-        objs, _ = __getNearbyObjects(message["device-id"])
-        devs = __getNearbyDevices(message["device-id"])
+def WS_msg_handler(message, Qws_in_dict):
+    idConn, data = message
+    
+    if int(data["type"]) == MessageTypes.NEARBY_REQUEST:
+        objs, _ = __getNearbyObjects(data["device-id"])
+        devs = __getNearbyDevices(data["device-id"])
         data = json.dumps((objs, devs))
         try:
-            Q_ws_in.put_nowait(data)
+            Qws_in_dict[idConn].put_nowait(data)
         except Full:
             pass
     else:
-        requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
+        requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(data))
 
 def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_ws_out: Queue, Q_ws_in : Queue, Config_):
     global Config, db1, c1, db2, c2
