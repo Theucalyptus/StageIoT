@@ -25,6 +25,8 @@ The client allows for two networks to be used: one main and a backup/alternative
 
 For static devices, LoRa could would be suitable for infrequent status update, while a more capable network could be used for important, real-time data.
 
+Because the program was at first designed with HTTP/LoRa in mind, for now client needs to poll the platform to receive updates about their surroundings. But with Websocket now being implemented, we could change this schema to have the server pushing updates to client instead, potentially allowing for less bandwith wasted and lower latency, at the cost of an increased workload for the server (but all the polling also has a cost server-side so could even reduce the workload ?)
+
 ## Setup & Usage
 This section contains information on how to setup, deploy and use both the software and the hardware.
 
@@ -40,8 +42,8 @@ See [server.md](doc/server.md) for information about the server's software, how 
 
 ## Benchmarking
 - Client: 
-    - measures the Network latency when sending data via http (from client to server), when pulling data from the server (total round-trip time of the request)
-    - measures the total 
+    - measures the Network latency when sending data via http (from client to server), when pulling data from the server via http and websocket (total round-trip time of the request)
+    - measures the total latency from the observation to another device receiving the information
     - The client measures the percentage of succes of a network rx/tx (i.e packet loss) (Not supported by all networking options)
 - Platform: 
     - measures the network delay for all type of messages, and saves it in the database for device update messages (`netDelay` column in the database)
@@ -59,7 +61,7 @@ This cache is *not saved when stopping the server*.
 The 'Visualize' page also pulls data from the cache if the selected duration is shorter than the cache duration. This means, however, that if the platform was recently restarted, selecting a duration shorter than the cache size will return no data, as they are expected to be in cache, while the data is actually available in the databse (see Improvement 8)
 
 ### Android Application
-The provided Android app is used to gather data from the smartphone's sensors (GPS location, orientation data) and send them to the 
+The provided Android app is used to gather data from the smartphone's sensors (GPS location, orientation data) and send them to the client. 
 
 ## Possible Improvements:
 1. ~~Redo device edit/list page to show lora eui if present~~ DONE (31008e87991f8ac9bcb3403117db5f9f2508782d)
@@ -70,3 +72,4 @@ The provided Android app is used to gather data from the smartphone's sensors (G
 6. Re-use more code between to WUI and the API (in progress)
 7. Create sub-categories of messages for various level or importance, and select which network to use
 8. Merge cache and database sources for data visualisation
+9. WebSocket: push data updates, instead of polling
