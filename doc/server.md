@@ -21,8 +21,13 @@ In the `seuveur/config.conf` file, one can set:
 - connection with *The Things Network* (endpoint, authentication)
 
 ## Usage
-
-
+The workflow is as follow:
+- Create an accout
+- Login into your account
+- Register a device (_don't forget the LoRa DevEUI if using LoRaWANN_)
+- Consult the data live with the Visualize and Map page
+- Download the data
+    
 ### API
 Command-line usage example, with HTTPie:
 ```sh

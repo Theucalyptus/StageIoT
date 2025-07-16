@@ -117,21 +117,30 @@ def __sendWorker():
                 logger.info("all networks are down. the data is still logged localy.")
 
         if MAIN_NET.isUp:
-            near_objects = MAIN_NET.getNearbyObjects()
+            near_things = MAIN_NET.getNearbyObjects()
+            now = time.time()
+            nearObjs, nearDevs = near_things
+            for lo in nearObjs.values():
+                for o in lo:
+                    end_to_end_latency = now - o['timestamp']
+                print("object (seen by " + o["seenby"] + ") total latency", end_to_end_latency)
+            for d in nearDevs.values():
+                end_to_end_latency = now - d['timestamp']
+                print("device " + d["device-id"] + " total latency", end_to_end_latency)
+
             stat_data = {'networkLatency': MAIN_NET.networkLatency,'failedMsgTX': MAIN_NET.failedMsgTX, 'totalMsgTX': MAIN_NET.totalMsgTX,
                          'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX}
-            near_objects.append(stat_data)
-            #if near_objects != [{}, {}]:
+            near_things.append(stat_data)
 
             data_network= {}
-            data_network['timestamp'] = time.time()
+            data_network['timestamp'] = now
             data_network['device-id'] = config.get('general', 'device_id')
             data_network['networkLatency'] = stat_data['networkLatency']
             data_network['failedMsgTX'] = stat_data['failedMsgTX']
             data_network['totalMsgTX'] = stat_data['totalMsgTX']
             data_network['failedMsgRX'] = stat_data['failedMsgRX']
             data_network['totalMsgRX'] = stat_data['totalMsgRX']
-            serialized_objects = json.dumps(near_objects)
+            serialized_objects = json.dumps(near_things)
             statWriter.saveSample(data_network)
             q_phone_in.put(serialized_objects)
 

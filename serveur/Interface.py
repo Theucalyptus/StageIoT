@@ -127,7 +127,6 @@ def save_object_DB(object):
         res = c.fetchone() # should only ever match one object
         object["id"] = res[0]
 
-
 def data_LoRa_handler(message,device):
     deviceid = __getDeviceIDFromEUI(device)
     if deviceid != None:
@@ -178,8 +177,7 @@ def Web_msg_handler(data_sample):
         print("device "+device+" not registered, ignoring.")
     
 def WS_msg_handler(message):
-    requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=message)
-
+    requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
 
 def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_websocket: Queue, Config_):
     global Config, db1, c1, db2, c2
@@ -197,7 +195,7 @@ def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_websocket: Queue, Config_):
     while True:
         try:
             while Q_Lora.empty() and Q_web.empty() and Q_websocket.empty():
-                time.sleep(0.002)
+                time.sleep(0.001)
             if not Q_Lora.empty():
                 LoRa_msg_handler(Q_Lora.get())
             if not Q_web.empty():

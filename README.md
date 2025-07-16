@@ -15,6 +15,16 @@ We also provide a Android app allowing a phone to be used as a sensor by the cli
 - Data access API
 - Benchmarking & measures: the platform measure all sorts of things about itself and its performance, like network usage, latency and reliability
 
+## Networking
+The program is designed to either use the internet connection available on the host device if running on HTTP/WebSocket, as well as LoRa using a Lopy 4 wireless module connected via UART.
+The client allows for two networks to be used: one main and a backup/alternative. If the main network is down*, the client switches to the backup. In case both networks are down, the data is still being logged localy. When a network is down, we periodicaly check if its back up and switch accordingly.
+
+* NOTE: LoRa doesn't provide an easy way to know if the network is up, as we would need to use confirmed messages, which are limited in number because they require downlink communication. We assume that LoRa is always up, as a "best effort" backup solution.
+
+* NOTE: HTTP and WebSocket count as two different networks
+
+For static devices, LoRa could would be suitable for infrequent status update, while a more capable network could be used for important, real-time data.
+
 ## Setup & Usage
 This section contains information on how to setup, deploy and use both the software and the hardware.
 
@@ -31,12 +41,13 @@ See [server.md](doc/server.md) for information about the server's software, how 
 ## Benchmarking
 - Client: 
     - measures the Network latency when sending data via http (from client to server), when pulling data from the server (total round-trip time of the request)
-    - The client measures the percentage of succes of a network (rx/tx) (i.e packet loss) (only for Http, see below for more info on LoRa)
+    - measures the total 
+    - The client measures the percentage of succes of a network rx/tx (i.e packet loss) (Not supported by all networking options)
 - Platform: 
     - measures the network delay for all type of messages, and saves it in the database for device update messages (`netDelay` column in the database)
     - packet loss for each device (total packet loss, combination of all networks* and for all messages), and logged in the device data (total number of lost packets between two successful device update messages) (`packetLoss` column in the database)
 
-Note: because we use a message number (modulo 256) to detect package loss, if using multiple network simultaneously, packets may arrive out-of-order and would be counted as packet-loss, even though they have been received and processed.
+NOTE: We use a message number (modulo 256) to detect package loss. If multiple network are used simultaneously, packets may arrive out-of-order and would be counted as packet-loss, even though they have been received and processed.
 
 ## Details
 
@@ -46,19 +57,6 @@ For example, the platform will measure network packet loss while the device is i
 Because the cache is only purged when inserting new data, if there is only one device, the new data upon reconnection will be inserted before the purge, so the session will continue.
 This cache is *not saved when stopping the server*.
 The 'Visualize' page also pulls data from the cache if the selected duration is shorter than the cache duration. This means, however, that if the platform was recently restarted, selecting a duration shorter than the cache size will return no data, as they are expected to be in cache, while the data is actually available in the databse (see Improvement 8)
-
-### Network messages
-By default, we send JSON-serialized messages for greater flexibility, ease of use and interpretability, as network bandwith is not a big concern on WiFi and LTE/5G, espcially in an experimental context with a limited number of devices. This allows us to include a description of what data is being sent, so the database can automatically update if a client introduces new sensors/data field. This is suboptimal for performance, but very helpful when experimenting with different types of sensors.
-However, when using LoRa, using JSON is *strongly* discouraged.
-Thus, when using the LoRa network, we switch to a **fixed, minimal message format** for some huge gains: a obstacle report message containing 2 objects goes from 212 bytes down to 30. For a sensor data message with 8 user data field, we see a reduction from 182 down to 38 bytes.
-Please note however that because LoRa *is not design for real-time data*, one may need to *significantly* reduce the upload frequency to stay under the legal duty cycle utilization limit (1% in Europe). If this quota is exceeded, the transmission will cease with no warning.
-The details of this serialization can be found in the `common/lora.py` file. It requires both the client and the server to know the message format in advance, which is inpractical, but we still went with it as network bandwith and usage is the biggest concern when using the LoRa network. In our test, we could get away with sending messages every ~10 seconds using LoRa for a limited period of time.
-
-The client allows for two networks to be used: one main and a backup/alternative. If the main network is down*, the client switches to the backup. In case both networks are down, the data is still being logged localy. When a network is down, we periodicaly check if its back up and switch accordingly.
-
-* NOTE: only the http network service can detect if it's online or not. LoRaWAN doesn't provide an easy way to now if the network is up, as we would need to use confirmed messages, which are limited in number because they required downlink communication. We assume that LoRa is always up, as a "best effort" backup solution.
-
-For static devices, LoRa could would be suitable for infrequent status update, while a more capable network could be used for important, real-time data.
 
 ### Android Application
 The provided Android app is used to gather data from the smartphone's sensors (GPS location, orientation data) and send them to the 

@@ -421,7 +421,7 @@ def post_data():
         raw_data= raw_data.removesuffix("\n")
         try:
             t = time.time()
-            handle_data_message(raw_data)
+            handle_data_message(json.loads(raw_data))
             return jsonify({"status": "success", "rxDate": t}), 200
         except json.JSONDecodeError:
             print("Received malformed json data")
@@ -429,16 +429,19 @@ def post_data():
         return jsonify({"status": "error", "message": "Invalid method"}), 400 # not a POST request
 
 
-def handle_data_message(raw_data):
+def handle_data_message(data):
     """
         Processes a JSON-serialized data message (sensor data / device update and objects messages)
     """
     t = time.time()
-    data = json.loads(raw_data)
             
     # Network delay
     netDelay = (t - data["timestamp"]) * 1000 # in milliseconds
-    data['netDelay'] = netDelay
+    if not "netDelay" in data:
+        data['netDelay'] = netDelay
+
+    # else:
+    #     print("OVERHEAD", netDelay- data["netDelay"])
     
     # Packet Loss
     current =  data["msgNumber"]
@@ -447,8 +450,8 @@ def handle_data_message(raw_data):
     else:
         lastRxNbr = stats_storage[data['device-id']]["lastmsgNumber"]
         nbLoss = (current - lastRxNbr - 1)%256
-        if nbLoss > 0:
-            print("detected packet loss", nbLoss, current, lastRxNbr)
+        # if nbLoss > 0:
+        #     print("detected packet loss", nbLoss, current, lastRxNbr)
         stats_storage[data['device-id']]["lastmsgNumber"] = current
         stats_storage[data['device-id']]["lossSinceLast"] += nbLoss
 
@@ -1398,7 +1401,7 @@ def apinearby_objects(deviceid):
     deviceData = {}
     try:
         latitude, longitude = __getDeviceLatestLocation(cursor, deviceid)
-        selected = ["device-id", "latitude", "longitude", "speed", "azimuth"]
+        selected = ["device-id", "latitude", "longitude", "speed", "azimuth", "timestamp"]
         temp = {k: {field: data_storage[k][-1][field] for field in data_storage[k][-1] if field in selected} for k in data_storage.keys() if k != deviceid}
         for k in temp.keys():
             lat, lon = temp[k]['latitude'], temp[k]['longitude']

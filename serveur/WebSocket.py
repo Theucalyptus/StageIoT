@@ -2,6 +2,8 @@ from queue import Queue
 from websockets.sync.server import serve
 from websockets.exceptions import *
 import logging
+import time
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,9 @@ def conn_handler(websocket):
         while not stopVar:
             try:
                 data = websocket.recv(timeout=None)
+                t = time.time()
+                data = json.loads(data)
+                data["netDelay"] = (t - data["timestamp"]) * 1000
                 Q_output.put(data)
             except TimeoutError:
                 pass
