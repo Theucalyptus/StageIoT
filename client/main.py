@@ -50,7 +50,7 @@ if config.getboolean('sensors', 'camera'):
 
 #Save stat
 statWriter = CSVWriter("statnetwork")
-statWriter.prepare(['timestamp','device-id', 'networkLatency', 'failedMsgTX', 'totalMsgTX', 'failedMsgRX', 'totalMsgRX'])
+statWriter.prepare(['timestamp','device-id', 'networkLatency', 'failedMsgTX', 'totalMsgTX', 'failedMsgRX', 'totalMsgRX', 'objlatency', 'devlatency'])
 
 ## NETWORK
 MAIN_NET = None
@@ -121,16 +121,19 @@ def __sendWorker():
             near_things = MAIN_NET.getNearbyObjects()
             now = time.time()
             nearObjs, nearDevs = near_things
+            latencyObj= 0
+            latencyDev = 0
             for lo in nearObjs.values():
                 for o in lo:
-                    end_to_end_latency = now - o['timestamp']
-                print("object (seen by " + o["seenby"] + ") total latency", end_to_end_latency)
+                    latencyObj = now - o['timestamp']
+                    print("object (seen by " + o["seenby"] + ") total latency", latencyObj)
             for d in nearDevs.values():
-                end_to_end_latency = now - d['timestamp']
-                print("device " + d["device-id"] + " total latency", end_to_end_latency)
+                latencyDev = now - d['timestamp']
+                print("device " + d["device-id"] + " total latency", latencyDev)
 
             stat_data = {'networkLatency': MAIN_NET.networkLatency,'failedMsgTX': MAIN_NET.failedMsgTX, 'totalMsgTX': MAIN_NET.totalMsgTX,
-                         'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX}
+                         'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX
+                         ,'objlatency': latencyObj, 'devlatency': latencyDev}
             near_things.append(stat_data)
 
             data_network= {}
