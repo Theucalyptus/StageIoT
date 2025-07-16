@@ -9,6 +9,7 @@ import network
 import sensors
 from config import config
 import signal
+from common.msgTypes import MessageTypes
 
 from spatial_object_perso import Camera
 
@@ -81,7 +82,7 @@ alternative = config.get('network', 'alt_interface')
 MAIN_NET = __enableNetInterface(main, q_netMain_in, q_netMain_out)
 ALT_NET = __enableNetInterface(alternative, q_netAlt_in, q_netAlt_out)
 
-message = {'device-id':config.get('general', 'device_id'), 'type':1, 'latitude':0.0, 'longitude':0.0, 'azimuth':0.0}
+message = {'device-id':config.get('general', 'device_id'), 'type':MessageTypes.DEVICE_UPDATE, 'latitude':0.0, 'longitude':0.0, 'azimuth':0.0}
 
 
 exit = False

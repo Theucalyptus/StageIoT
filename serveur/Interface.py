@@ -1,13 +1,15 @@
 import mysql.connector.abstracts
 import base64
 import json
-from queue import Queue
+from queue import Queue, Full
 import time
 import utils
 import datetime
 import requests
 from common.msgTypes import MessageTypes
 from common import lora
+from web.IP import __getNearbyObjects, __getNearbyDevices
+
 
 Config = {}
 
@@ -176,10 +178,19 @@ def Web_msg_handler(data_sample):
     else:
         print("device "+device+" not registered, ignoring.")
     
-def WS_msg_handler(message):
-    requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
+def WS_msg_handler(message, Q_ws_in: Queue):
+    if int(message["type"]) == MessageTypes.NEARBY_REQUEST:
+        objs, _ = __getNearbyObjects(message["device-id"])
+        devs = __getNearbyDevices(message["device-id"])
+        data = json.dumps((objs, devs))
+        try:
+            Q_ws_in.put_nowait(data)
+        except Full:
+            pass
+    else:
+        requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
 
-def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_websocket: Queue, Config_):
+def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_ws_out: Queue, Q_ws_in : Queue, Config_):
     global Config, db1, c1, db2, c2
     print("Starting Interface node")
     Config=Config_
@@ -194,14 +205,14 @@ def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_websocket: Queue, Config_):
 
     while True:
         try:
-            while Q_Lora.empty() and Q_web.empty() and Q_websocket.empty():
+            while Q_Lora.empty() and Q_web.empty() and Q_ws_out.empty():
                 time.sleep(0.001)
             if not Q_Lora.empty():
                 LoRa_msg_handler(Q_Lora.get())
             if not Q_web.empty():
                 Web_msg_handler(Q_web.get())
-            if not Q_websocket.empty():
-                WS_msg_handler(Q_websocket.get())
+            if not Q_ws_out.empty():
+                WS_msg_handler(Q_ws_out.get(), Q_ws_in)
         except Exception as e:
             print("Interface: ERROR:", e)
 

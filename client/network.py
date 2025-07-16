@@ -7,8 +7,10 @@ from requests.exceptions import *
 import json
 import time
 from common import lora
+from common.msgTypes import MessageTypes
 from websockets.sync.client import connect
 from websockets.exceptions import *
+
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +192,7 @@ class HTTPService:
             r = requests.get(HTTPService.getObjURL, timeout=HTTPService.timeout)
             after = time.time()
             self.networkLatency = after - before
-            logger.info("HTTP Rx took {:.2f}".format(after - before) + "s")
+            logger.info("HTTP getNearbyObjects took {:.2f}".format(after - before) + "s")
             if r.status_code == 200:
                 data = r.json()
                 #logger.info("http received " + str(data))
@@ -200,7 +202,7 @@ class HTTPService:
             else:
                 logger.warning("http received unexpected status code " + str(r.status_code))
                 return NEARBY_DEFAULT.copy()
-        except (ConnectionError, ReadTimeout) as e:
+        except (ConnectionError, ReadTimeout, requests.exceptions.JSONDecodeError) as e:
             logger.error("http receive failed: " + str(e))
             self.isUp = False
             self.failedMsgRX+=1
@@ -219,13 +221,13 @@ class WebSocketService:
 
     host = config.get('network.websocket', 'host')
     port = config.get('network.websocket', 'port')
-
     baseUrl = "ws://"+host+":"+port
-
+    
     time_between_send = config.getfloat('network.websocket', 'time_between_send')
-
+    timeout = config.getfloat("network.websocket", "timeout")
     latency = config.getint('network.websocket', 'latency')
 
+    __getNearbyMessage = message = json.dumps({'device-id':config.get('general', 'device_id'), 'type':MessageTypes.NEARBY_REQUEST})
 
     def __init__(self, q_in, q_out):
 
@@ -291,8 +293,22 @@ class WebSocketService:
         Returns a list of nearby objects detected by the device.
         This method is not implemented for WebSocket service.
         """
-        logger.warning("websocket service does not support getNearbyObjects")
-        return NEARBY_DEFAULT.copy()
+        if not self.isUp:
+            logger.warning("websocket is down. Cannot receive data")
+            return NEARBY_DEFAULT.copy()
+        try:
+            before = time.perf_counter()
+            self.__conn.send(WebSocketService.__getNearbyMessage, text=True) # send the request
+            # because for now we only have one type of request, we just assume that the answer will be the correct one
+            answer = self.__conn.recv(timeout=WebSocketService.timeout)
+            after = time.perf_counter()
+            self.networkLatency = after - before
+            logger.info("WebSocket getNearbyObjects took {:.2f}".format(after - before) + "s")
+            return json.loads(answer)
+        except (ConnectionClosed, TimeoutError, JSONDecodeError, UnicodeDecodeError) as e:
+            logger.error("websocket failed: " + str(e))
+            self.isUp = False
+            return NEARBY_DEFAULT.copy()
 
     def stop(self):
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):

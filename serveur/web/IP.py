@@ -16,7 +16,6 @@ import mysql.connector.abstracts
 import uuid
 from common.msgTypes import MessageTypes
 import time
-
 import Interface
 from web.forms import *
 
@@ -37,6 +36,9 @@ objects_storage = {}
 stats_storage = {}
 
 Config = {}
+defSearchSize = 100
+
+
 
 ### AUXILIARY FUNCTIONS
 
@@ -153,7 +155,7 @@ def __getDeviceLatestLocation(cursor, deviceid):
             raise NoLocationDataException
         return device_location
 
-def __getNearbyObjects(deviceid, seuil):
+def __getNearbyObjects(deviceid, seuil=defSearchSize):
     """
     Get the list of all objects detected **by other devices** in the specified range around the requested device.
 
@@ -212,6 +214,30 @@ def __getNearbyObjects(deviceid, seuil):
     except NoLocationDataException:
         print("__getNearbyObjects", deviceid, "has no known live-location (in cache, not DB).")
         return {}, {}
+
+def __getNearbyDevices(deviceid, siez=defSearchSize):
+    """
+        Returns a dict of nearby devices.
+
+        Return: dict : keys=device-id, values = device data
+    """
+
+    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    cursor = db.cursor()
+    
+    deviceData = {}
+    try:
+        latitude, longitude = __getDeviceLatestLocation(cursor, deviceid)
+        selected = ["device-id", "latitude", "longitude", "speed", "azimuth", "timestamp"]
+        temp = {k: {field: data_storage[k][-1][field] for field in data_storage[k][-1] if field in selected} for k in data_storage.keys() if k != deviceid}
+        for k in temp.keys():
+            lat, lon = temp[k]['latitude'], temp[k]['longitude']
+            if calculate_distance(latitude, longitude, lat, lon) < defSearchSize:
+                deviceData[k] = temp[k]
+    except NoLocationDataException:
+        logging.info("Requested nearby objects for device "+deviceid + " but don't have live location data")
+    
+    return deviceData
 
 def __queryUserDeviceList(username):
     """
@@ -1323,13 +1349,14 @@ def nearby_objects(deviceid):
         A rendered HTML template with the nearby objects.
 
     """
-    defSearchSize = 100
+    global defSearchSize
+    _searchSize = defSearchSize
 
-    size = request.args.get("size", defSearchSize) 
+    size = request.args.get("size", _searchSize) 
     try:
         size = float(size)
     except ValueError:
-        size = defSearchSize
+        size = _searchSize
         print("request contained invalid size parameter, using default")
     
     data, distances = __getNearbyObjects(deviceid, size)
@@ -1380,7 +1407,7 @@ def apinearby_objects(deviceid):
 
     """
     
-    global data_storage
+    global data_storage, defSearchSize
 
     # key= request.args.get('key')
     # username = get_user_from_api_key(key)
@@ -1390,27 +1417,11 @@ def apinearby_objects(deviceid):
     if deviceid not in __queryAllDeviceIDs():
         return jsonify({"error": "Device not found"}), 404
        
-    defSearchSize = 100
     # recuperer les objets vus par ces appareils
-    objects,_ = __getNearbyObjects(deviceid, defSearchSize) # Antoine: 100 is the default search size, can be changed by the user in the request
+    objects,_ = __getNearbyObjects(deviceid, defSearchSize)
+    devices = __getNearbyDevices(deviceid, defSearchSize)
 
-
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
-    
-    deviceData = {}
-    try:
-        latitude, longitude = __getDeviceLatestLocation(cursor, deviceid)
-        selected = ["device-id", "latitude", "longitude", "speed", "azimuth", "timestamp"]
-        temp = {k: {field: data_storage[k][-1][field] for field in data_storage[k][-1] if field in selected} for k in data_storage.keys() if k != deviceid}
-        for k in temp.keys():
-            lat, lon = temp[k]['latitude'], temp[k]['longitude']
-            if calculate_distance(latitude, longitude, lat, lon) < defSearchSize:
-                deviceData[k] = temp[k]
-    except NoLocationDataException:
-        logging.info("Requested nearby objects for device "+deviceid + " but don't have live location data")
-    #distances = {} 
-    return jsonify((objects, deviceData)),200
+    return jsonify((objects, devices)),200
 
 @app.route('/api/getKey', methods=['GET'])
 @auth.login_required
@@ -1755,9 +1766,10 @@ def IPnode(Q_output: Queue, config):
     Returns:
         None
     """
-    global Q_out, Config
+    global Q_out, Config, defSearchSize
     Config=config
     Config["cache_duration"] = float(Config["cache_duration"])
+    defSearchSize = float(Config["neighbourhood_size"])
     Q_out=Q_output
     db = mysql.connector.connect(host=Config["SQL_host"], user=config["SQL_username"], password=Config["SQL_password"])
     app.app_context().push()

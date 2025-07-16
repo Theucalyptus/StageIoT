@@ -131,7 +131,8 @@ def run_server():
     #Queues and nodes parameters
     Q_Lora = Queue()
     Q_4g = Queue()
-    Q_ws = Queue()
+    Q_ws_out = Queue()
+    Q_ws_in = Queue()
 
     coordsTTN = {
         'mqtt_username' :Config["APP_username"],
@@ -141,9 +142,9 @@ def run_server():
     }
     # création des threads
     threadMQTT = threading.Thread(target=MQTT.MQTTnode,args=[coordsTTN,Q_Lora], daemon=True)
-    threadIf = threading.Thread(target=Interface.Ifnode,args=[Q_Lora,Q_4g, Q_ws,Config], daemon=True)
+    threadIf = threading.Thread(target=Interface.Ifnode,args=[Q_Lora,Q_4g, Q_ws_out, Q_ws_in, Config], daemon=True)
     threadIP = threading.Thread(target=IP.IPnode,args=[Q_4g,Config], daemon=True)
-    threadWS = threading.Thread(target=WS.WSnode,args=[Config, Q_ws], daemon=True)
+    threadWS = threading.Thread(target=WS.WSnode,args=[Config, Q_ws_out, Q_ws_in], daemon=True)
 
 
     # start les threads
