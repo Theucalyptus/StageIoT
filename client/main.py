@@ -50,7 +50,10 @@ if config.getboolean('sensors', 'camera'):
 
 #Save stat
 statWriter = CSVWriter("statnetwork")
-statWriter.prepare(['timestamp','device-id', 'networkLatency', 'failedMsgTX', 'totalMsgTX', 'failedMsgRX', 'totalMsgRX', 'objlatency', 'devlatency'])
+statWriter.prepare(['timestamp','device-id', 'networkLatency', 'failedMsgTX', 'totalMsgTX', 'failedMsgRX', 'totalMsgRX'])
+
+objDevWriter = CSVWriter("objects_devices")
+objDevWriter.prepare(['timestamp', 'device', 'object', 'netDelay'])
 
 ## NETWORK
 MAIN_NET = None
@@ -125,15 +128,26 @@ def __sendWorker():
             latencyDev = 0
             for lo in nearObjs.values():
                 for o in lo:
+                    d={}
                     latencyObj = now - o['timestamp']
+                    d['timestamp'] = o['timestamp']
+                    d['device']= o['seenby']
+                    d['object'] = o['id']
+                    d['netDelay'] = latencyObj
+                    objDevWriter.saveSample(d)
                     print("object (seen by " + o["seenby"] + ") total latency", latencyObj)
             for d in nearDevs.values():
                 latencyDev = now - d['timestamp']
+                da={}
+                da['timestamp'] = d['timestamp']
+                da['device']=d['device-id']
+                da['object'] = ""
+                da['netDelay'] = latencyDev
+                objDevWriter.saveSample(da)
                 print("device " + d["device-id"] + " total latency", latencyDev)
 
             stat_data = {'networkLatency': MAIN_NET.networkLatency,'failedMsgTX': MAIN_NET.failedMsgTX, 'totalMsgTX': MAIN_NET.totalMsgTX,
-                         'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX
-                         ,'objlatency': latencyObj, 'devlatency': latencyDev}
+                         'failedMsgRX': MAIN_NET.failedMsgRX, 'totalMsgRX': MAIN_NET.totalMsgRX}
             near_things.append(stat_data)
 
             data_network= {}
@@ -172,6 +186,7 @@ def stop(*args):
         logger.debug("Waiting for alt network to stop...")
         ALT_NET.stop()
     statWriter.end()
+    objDevWriter.end()
     logger.debug("Waiting for send worker to stop...")
     t.join()
 
