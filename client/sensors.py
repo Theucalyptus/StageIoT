@@ -23,10 +23,17 @@ class Sensor:
     def __init__(self, name, dataRecorder=NullWriter):
         self.name = name
         self.data = {}
-        self.data.setdefault("timestamp", 0)
+        self.datatypes = {}
+        self._addDataField("timestamp", str)
+        self.data["timestamp"] = "0.0"
+
         self.outbuffer = Buffer()
         self.recorder = dataRecorder(self.name)
         self.stopVar = False # indicates if the sensor should be logging or not
+
+    def _addDataField(self, name, type):
+        self.data.setdefault(name)
+        self.datatypes[name] = type
 
     def __registerDataFields(self):
         raise NotImplementedError
@@ -40,7 +47,7 @@ class Sensor:
             
         for field in self.data:
             if field in sample:            
-                self.data[field] = sample[field]
+                self.data[field] = self.datatypes[field](sample[field])
                 present.add(field)
         
         for field in self.data:
@@ -89,13 +96,13 @@ class Phone(Sensor):
         """
             Registers all data fields provided by the sensor
         """
-        self.data.setdefault("latitude")
-        self.data.setdefault("longitude")
-        self.data.setdefault("altitude")
-        self.data.setdefault("speed")
-        self.data.setdefault("roll")
-        self.data.setdefault("pitch")
-        self.data.setdefault("azimuth")
+        self._addDataField("latitude", float)
+        self._addDataField("longitude", float)
+        self._addDataField("altitude", float)
+        self._addDataField("speed", float)
+        self._addDataField("roll", float)
+        self._addDataField("pitch", float)
+        self._addDataField("azimuth", float)
         
     def __conn_handler(self, websocket):
         try:
@@ -110,6 +117,7 @@ class Phone(Sensor):
                 #logger.info("received " + str(data))
                 try:
                     deserialized = json.loads(data)
+                    print(data)
                     self.newSampleHandler(deserialized)
                 except json.JSONDecodeError as e:
                     logger.warning("received malformed data " + str(e))
