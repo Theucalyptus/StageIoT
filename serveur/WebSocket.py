@@ -24,7 +24,7 @@ def conn_handler(websocket):
     try:
         while not stopVar:
             try:
-                data = websocket.recv(timeout=0)
+                data = websocket.recv(timeout=0, decode=None)
                 t = time.time()
                 data = json.loads(data)
                 # if we have a sending timestamp, compute network delay
@@ -64,4 +64,4 @@ def WSnode(config, Q_out : Queue, Q_in):
         server =  serve(conn_handler, "0.0.0.0", p)
         server.serve_forever()
     except Exception as e:
-        logger.critical("config error for ws_port " + str(e))
+        print("config error for ws_port " + str(e))

@@ -227,7 +227,7 @@ public class MainActivity extends AppCompatActivity {
             ratio_rx = (tMsgRx==0.0) ? ratio_rx: 100 * (1-(fMsgRx/tMsgRx));
             ratio_tx = (tMsgTx==0.0) ? ratio_tx: 100 * (1-(fMsgTx/tMsgTx));
 
-            disp_stat= "Latence http : "+ (int) latence + " ms | Succes Rx : " + String.format("%.2f",ratio_rx) + "% | Succes tx : " + String.format("%.2f",ratio_tx) + "%";
+            disp_stat= "Net latency : "+ (int) latence + " ms | Succes Rx : " + String.format("%.2f",ratio_rx) + "% | Succes tx : " + String.format("%.2f",ratio_tx) + "%";
         }
 
         runOnUiThread(()->{

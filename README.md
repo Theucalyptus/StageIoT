@@ -51,6 +51,8 @@ See [server.md](doc/server.md) for information about the server's software, how 
 
 NOTE: We use a message number (modulo 256) to detect package loss. If multiple network are used simultaneously, packets may arrive out-of-order and would be counted as packet-loss, even though they have been received and processed.
 
+NOTE: We use timestamps to measure network delays, so _make sure all your devices have synchronized clocks_
+
 ## Details
 
 ### Sessions

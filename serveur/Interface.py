@@ -208,7 +208,7 @@ def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_ws_out: Queue, Q_ws_in : Queue, Conf
     while True:
         try:
             while Q_Lora.empty() and Q_web.empty() and Q_ws_out.empty():
-                time.sleep(0.001)
+                time.sleep(0.005)
             if not Q_Lora.empty():
                 LoRa_msg_handler(Q_Lora.get())
             if not Q_web.empty():
