@@ -16,6 +16,7 @@ Config = {}
 # long-lived DB connction, one per thread
 db1, c1 = None, None # for data sample (used by Web_msg_handler & save_sample_DB)
 db2, c2 = None, None # for objects 
+db3, c3 = None, None # for WebSocket
 
 def __getSQLDataType(value):
     if type(value) == int:
@@ -48,6 +49,12 @@ def __getDeviceIDFromEUI(lora_eui: str):
     except (IndexError, TypeError):
         pass
     return res
+
+def __checkDeviceRegistered(deviceid, conn):
+    query = "SELECT * FROM Device WHERE `device-id`=%s"
+    conn.execute(query,(deviceid,))
+    res = conn.fetchall()
+    return len(res)>0
 
 def save_sample_DB(data):
     db = db1 #mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
@@ -91,13 +98,8 @@ def save_object_DB(object):
     temp = object.copy()
     temp['timestamp']=datetime.datetime.fromtimestamp(object['timestamp'])
     
-
-    device = object["seenby"]
-    query = "SELECT * FROM Device WHERE `device-id`=%s"
-    c.execute(query,(device,))
-    res = c.fetchall()
-    if len(res)==0:
-        print("object seen by unkown device, ignoring")
+    if not __checkDeviceRegistered(object["seenby"], c):
+        print("object seen by unknown device, ignoring")
         return
 
 
@@ -143,7 +145,7 @@ def data_LoRa_handler(message,device):
         message['device-id'] = deviceid
         requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
     else:
-        print("unkown lora EUI ({0}), ignoring message".format(device))
+        print("unknown lora EUI ({0}), ignoring message".format(device))
 
 def LoRa_msg_handler(msg):
     try :
@@ -179,8 +181,14 @@ def Web_msg_handler(data_sample):
         print("device "+device+" not registered, ignoring.")
     
 def WS_msg_handler(message, Qws_in_dict):
+    global c3
+
     idConn, data = message
-    
+    # check if device is registered
+    if not __checkDeviceRegistered(data["device-id"], c3):
+        print("request sent by unknown device, ignoring")
+        return
+
     if int(data["type"]) == MessageTypes.NEARBY_REQUEST:
         objs, _ = __getNearbyObjects(data["device-id"])
         devs = __getNearbyDevices(data["device-id"])
@@ -193,17 +201,21 @@ def WS_msg_handler(message, Qws_in_dict):
         requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(data))
 
 def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_ws_out: Queue, Q_ws_in : Queue, Config_):
-    global Config, db1, c1, db2, c2
+    global Config, db1, c1, db2, c2, db3, c3
     print("Starting Interface node")
     Config=Config_
     
-    # for use by save sample (1 thread only so OK)
+    # for use by save sample (this thread only)
     db1 = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     c1 = db1.cursor()
 
     # for use by object save (called from flask request handlers, 1 at a time at most, because flask is monothreaded)
     db2 = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     c2 = db2.cursor()
+
+    # for use by websocket handler (this thread only)
+    db3 = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
+    c3 = db3.cursor()
 
     while True:
         try:

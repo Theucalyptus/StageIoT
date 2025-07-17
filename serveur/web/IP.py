@@ -621,7 +621,7 @@ def get_latest_data():
             res = cursor.fetchall()[0][0]
             temp[k]['name'] = res
         except IndexError:
-            temp[k]['name'] = "unkown"
+            temp[k]['name'] = "unknown"
     
     # debug
     for k in data_storage.keys():

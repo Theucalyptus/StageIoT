@@ -269,7 +269,8 @@ class WebSocketService:
                 self.__send(self.q_in.get())
 
         # close the connection when stopping
-        self.__conn.close()
+        if self.__conn != None:
+            self.__conn.close()
                 
 
     def __send(self, msg):
@@ -298,6 +299,7 @@ class WebSocketService:
             return NEARBY_DEFAULT.copy()
         try:
             before = time.perf_counter()
+            self.totalMsgRX+=1
             self.__conn.send(WebSocketService.__getNearbyMessage, text=True) # send the request
             # because for now we only have one type of request, we just assume that the answer will be the correct one
             answer = self.__conn.recv(timeout=WebSocketService.timeout)
@@ -305,11 +307,16 @@ class WebSocketService:
             self.networkLatency = after - before
             logger.info("WebSocket getNearbyObjects took {:.2f}".format(after - before) + "s")
             return json.loads(answer)
-        except (ConnectionClosed, TimeoutError, JSONDecodeError, UnicodeDecodeError) as e:
+        except (TimeoutError, JSONDecodeError, UnicodeDecodeError) as e:
+            logger.error("websocket failed (but probably server-side): " + str(e))
+            # self.isUp = False
+            # self.__conn.close() # try to properly close the connection (usefull if this is a server-side error that caused the timeout)
+            return NEARBY_DEFAULT.copy()
+        except (ConnectionClosed) as e:
             logger.error("websocket failed: " + str(e))
             self.isUp = False
-            return NEARBY_DEFAULT.copy()
-
+            self.failedMsgRX+=1
+    
     def stop(self):
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
             rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)

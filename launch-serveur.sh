@@ -11,7 +11,7 @@ fi
 cd serveur/ || exit
 
 echo "Lancemement du serveur (mySQL + Web UI/API via Docker Compose)"
-docker compose up --build --remove-orphans
+docker compose up "$@"
 
 cd ../..
 pwd

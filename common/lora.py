@@ -22,7 +22,7 @@ SENSORS_MSG = ['type','msgNumber', 'timestamp', 'latitude', 'longitude', 'altitu
 # must contain the same elements as `LABELS` in client/spatial_object_perso
 OBJECTS_LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus","car",
                 "cat","chair","cow","diningtable","dog","horse","motorbike","person",
-                "pottedplant","sheep","sofa","train","tvmonitor"] + ['unkown']
+                "pottedplant","sheep","sofa","train","tvmonitor"] + ['unknown']
 OBJECT_MSG_HEADER = ['type', 'timestamp']
 OBJECT_ITEM_MSG = ['latitude', 'longitude', 'label', 'id']
 
@@ -87,7 +87,7 @@ def objects_to_lora(data):
                 o['label'] = OBJECTS_LABELS.index(o['label']) # encode object label
             except ValueError:
                 logger.warning("Tried to encode an unknown object label")
-                o['label'] = OBJECTS_LABELS.index('unkown')
+                o['label'] = OBJECTS_LABELS.index('unknown')
 
         # minimization
         bin = b''
