@@ -26,6 +26,7 @@ import android.provider.ContactsContract;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.autofill.AutofillValue;
 import android.widget.Button;
 import android.widget.EditText;
@@ -218,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
 
         if(stat!=null){
             Log.d("ICI", stat.toString());
-            latence= stat.getDouble("networkLatency") * 100;
+            latence= stat.getDouble("networkLatency") * 1000;
             double fMsgTx= stat.getDouble("failedMsgTX");
             double fMsgRx = stat.getDouble("failedMsgRX");
             double tMsgTx = stat.getDouble(("totalMsgTX"));
@@ -356,6 +357,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
 
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
