@@ -187,10 +187,10 @@ class HTTPService:
         
         try:
             self.totalMsgRX += 1
-            before = time.time()
+            before = time.perf_counter()
             time.sleep(HTTPService.latency / 1000)
             r = requests.get(HTTPService.getObjURL, timeout=HTTPService.timeout)
-            after = time.time()
+            after = time.perf_counter()
             self.networkLatency = after - before
             logger.info("HTTP getNearbyObjects took {:.2f}".format(after - before) + "s")
             if r.status_code == 200:
@@ -305,7 +305,7 @@ class WebSocketService:
             answer = self.__conn.recv(timeout=WebSocketService.timeout)
             after = time.perf_counter()
             self.networkLatency = after - before
-            logger.info("WebSocket getNearbyObjects took {:.2f}".format(after - before) + "s")
+            logger.info("WebSocket getNearbyObjects took {:.2f}".format((self.networkLatency * 1000)) + "ms")
             return json.loads(answer)
         except (TimeoutError, JSONDecodeError, UnicodeDecodeError) as e:
             logger.error("websocket failed (but probably server-side): " + str(e))

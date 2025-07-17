@@ -182,8 +182,9 @@ def Web_msg_handler(data_sample):
     
 def WS_msg_handler(message, Qws_in_dict):
     global c3
-
     idConn, data = message
+    #start = time.perf_counter_ns()
+    
     # check if device is registered
     if not __checkDeviceRegistered(data["device-id"], c3):
         print("request sent by unknown device, ignoring")
@@ -199,6 +200,9 @@ def WS_msg_handler(message, Qws_in_dict):
             pass
     else:
         requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(data))
+
+    #end = time.perf_counter_ns()
+    #print("WS msg handler took", (end-start) / 1_000_000)
 
 def Ifnode(Q_Lora : Queue, Q_web : Queue, Q_ws_out: Queue, Q_ws_in : Queue, Config_):
     global Config, db1, c1, db2, c2, db3, c3
