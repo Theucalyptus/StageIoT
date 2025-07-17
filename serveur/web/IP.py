@@ -127,6 +127,13 @@ def __delete_device(deviceid,username):
         query = "DELETE FROM DeviceOwners WHERE device = %s AND owner = %s"
         cursor.execute(query, (deviceid, username))
         db.commit()
+
+    # Supprimer les objets vu par le device
+    if cond:
+        query = "DELETE FROM Objects WHERE seenby = %s "
+        cursor.execute(query, (deviceid,))
+        db.commit()
+
     # supprimer la table contenant les données
     cursor.execute("DELETE FROM Device WHERE `device-id` = %s", (deviceid,))
     cursor.execute("DROP TABLE IF EXISTS " + deviceid)
