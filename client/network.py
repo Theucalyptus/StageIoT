@@ -52,7 +52,7 @@ class UartService:
         self.totalMsgTX = 0
         self.failedMsgRX = 0
         self.totalMsgRX = 0
-        self.networkLatency = 0
+        self.networkLatency = 0 # Time it took to perform a getNearbyObjects request
 
     def run(self):
         logger.info("uart service running")
@@ -132,7 +132,7 @@ class HTTPService:
         self.totalMsgTX = 0
         self.failedMsgRX = 0
         self.totalMsgRX = 0
-        self.networkLatency=0
+        self.networkLatency=0 # Time it took to perform a getNearbyObjects request
         
 
     def run(self):
@@ -244,7 +244,7 @@ class WebSocketService:
         self.totalMsgTX = 0
         self.failedMsgRX = 0
         self.totalMsgRX = 0
-        self.networkLatency=0
+        self.networkLatency=0 # Time it took to perform a getNearbyObjects request
         
 
     def run(self):

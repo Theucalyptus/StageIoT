@@ -3,6 +3,7 @@
 *.d
 *.pyc
 
+Ressources Demo/
 
 client/old/
 client/logs/

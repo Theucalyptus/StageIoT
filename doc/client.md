@@ -1,17 +1,16 @@
 # Client
 The client is indented to be used on an mobile/embedded computer, like a NVidia Jetson or a Raspberry Pi. It collectes data from sensors, logs the data locally and periodicaly sends it over the network.
 
+## Sensors
 The two main sensors intended to be used are a (stereoscopic) camera for object detection and a phone (for GPS and orientation). Due to early desing consideration and materiel limitiation, we designed to Phone sensor to be connected using WiFi. The WiFi network can be hosted by both the client or the phone. Hosting the wifi hotspot on the phone allows for 4/5G connectiviy without needing another device.
 
-Additional sensors can be implemented by inheriting the `Sensor` class. It is **required** for each client to have a GPS and provide the `latitude` and `longitude` values when syncing with the network, or many features of the platform wont be available. If using a camera for object detection, `azimuth` is also required.All sensors are registered in the `sensorsList` list. The order is significant: if multiple sensors provide the same data field, the data from the latest one will override the others. The last sensor should be `static`, so that manually provided values override all other sensors that may provide the same data field.
-
-Data from the sensors are stored in csv files (one per sensor), named after the time of recording and name of the sensor. 
-
-Objects detected by the camera are approximatly located using a combination of the GPS coordinates and azimuth provided by the phone, and the position of objects relative to the camera. This means that the phone should point in the same direction as the camera (i.e the top of the screen of the phone is ponting the same way as the lens)
+Data from the sensors are stored in csv files (one per sensor), named after the time of recording and name of the sensor. We also save some additional performance metrics in `statnetwork` (network reliability and neighbourhood requests duration) and `objects_devices` (total system latency, i.e time between a device sending new data to the platfom and this data being received; for earch device and object, for each request)
 
 Each sensor as a thread dedicated to sampling and logging its own data. A main thread gathers data from all sensors and prepares messages to be sent other the network on a periodic basis (the periode can be set in the config file; only if the data has changed since the last upload). In case the main network is down, we try the alternative network.
 Objects report messages are handled separatly. For now, objects report messages are sent *only sent via the main network* (as we assume the use of LoRa as the backup, which doesn't offer enough bandwith for it to be practical). 
 We filter the main types of objects that we want (like car, person, motocycle...) and periodically send object report messages, containing all tracked objects.
+
+Objects detected by the camera are approximatly located using a combination of the GPS coordinates and azimuth provided by the phone, and the position of objects relative to the camera. This means that the phone should point in the same direction as the camera (i.e the top of the screen of the phone is ponting the same way as the lens)
 
 ## Running the client
 - Create a Python venv (Python >=3.10, tested on both 3.10.12 and 3.13.5)
@@ -27,6 +26,8 @@ __Don't forget do set the device id!__
 You can enable/disable sensors, and set networking options (endpoint, frequency). This is also where you can set manual values, such as a fixed location for a static sensor for example.
 
 ## How to Add a new sensor / data field
+Additional sensors can be implemented by inheriting the `Sensor` class. It is **required** for each client to have a GPS and provide the `latitude` and `longitude` values when syncing with the network, or many features of the platform wont be available. If using a camera for object detection, `azimuth` is also required. All sensors are registered in the `sensorsList` list. The order is significant: if multiple sensors provide the same data field, the data from the latest one will override the others. The last sensor should be `static`, so that manually provided values override all other sensors that may provide the same data field.
+
 - If adding a completly new sensor, in `client/sensors.py` create a new class inheriting the 'Sensor' class, and instance it in main. Add this instance to the `sensorsList`. 
 - To declare a new data field (for both a new or existing sensor), add a new line like `self.data.setdefault("my_data_field")` in the `__registerDataField` function of your sensor class.
 - The two steps above are enough to have your new sensor (and/or) data field logged localy. For sending the data onto the network, please see below.

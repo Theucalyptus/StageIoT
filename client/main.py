@@ -173,21 +173,21 @@ def stop(*args):
         return # function was already called.
     exit = True
     for sensor in sensorsList:
-        logger.debug("waiting for sensor " + sensor.name + " to stop...")
+        logger.info("waiting for sensor " + sensor.name + " to stop...")
         sensor.stop()
     
     if cam:
-        logger.debug("Waiting for camera worker to stop...")
+        logger.info("Waiting for camera worker to stop...")
         cam.stop()
     
-    logger.debug("Waiting for main network to stop ...")
+    logger.info("Waiting for main network to stop ...")
     MAIN_NET.stop()
     if ALT_NET:
-        logger.debug("Waiting for alt network to stop...")
+        logger.info("Waiting for alt network to stop...")
         ALT_NET.stop()
     statWriter.end()
     objDevWriter.end()
-    logger.debug("Waiting for send worker to stop...")
+    logger.info("Waiting for send worker to stop...")
     t.join()
 
 signal.signal(signal.SIGINT, stop)
