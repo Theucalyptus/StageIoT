@@ -82,7 +82,7 @@ def UART_service(Q_out, Q_in):
         if Q_out.full():
             Q_out.get()
         Q_out.put(data)
-        __sendU(data) ## ECHO
+        #__sendU(data) ## ECHO
 
     tempBuffer = b''
     while True:

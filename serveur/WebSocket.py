@@ -32,7 +32,7 @@ def conn_handler(websocket):
                     data["netDelay"] = (t - data["timestamp"]) * 1000
                 Q_output.put((id, data))
             except TimeoutError:
-                pass
+                time.sleep(0.001)
             try:
                 if not Q_in_dict[id].empty():
                     data = Q_in_dict[id].get_nowait()

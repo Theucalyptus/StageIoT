@@ -316,12 +316,14 @@ class WebSocketService:
             logger.error("websocket failed: " + str(e))
             self.isUp = False
             self.failedMsgRX+=1
-    
+            return NEARBY_DEFAULT.copy()
+
+
     def stop(self):
         if(not (self.totalMsgRX == 0 or self.totalMsgTX == 0)):
             rxSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
             txSp = 100 * (1 - self.failedMsgRX / self.totalMsgRX)
-            logger.info("RX % : {:0.2f}".format(rxSp), "TX % : {:0.2f}".format(txSp))
+            logger.info("RX: {:0.2f}%".format(rxSp) + " TX: {:0.2f}%".format(txSp))
         
         self.stopVar = True
         self.thread.join()
