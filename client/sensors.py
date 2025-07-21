@@ -117,7 +117,6 @@ class Phone(Sensor):
                 #logger.info("received " + str(data))
                 try:
                     deserialized = json.loads(data)
-                    print(data)
                     self.newSampleHandler(deserialized)
                 except json.JSONDecodeError as e:
                     logger.warning("received malformed data " + str(e))
@@ -216,6 +215,7 @@ class Static(Sensor):
             return bool(text)
         else:
             return None
+    
     def __init__(self):
         super().__init__("static")
         self.data = {}

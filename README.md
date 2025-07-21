@@ -5,7 +5,7 @@ This project aims at creating a platform for collecting and sending vehicule's d
 Both the server and client are written in Python.
 We also provide a Android app allowing a phone to be used as a sensor by the client (for GPS, acceleration, etc).
 
-![Architectural diagram of the platform](doc/diag.png)
+![Architectural diagram of the platform](doc/diag.drawio.png)
 
 ## Main features
 - Data collection with an embedded system and external sensors
