@@ -5,7 +5,7 @@ This project aims at creating a platform for collecting and sending vehicule's d
 Both the server and client are written in Python.
 We also provide a Android app allowing a phone to be used as a sensor by the client (for GPS, acceleration, etc).
 
-![Architectural diagram of the platform](doc/diag.drawio.png)
+![Architectural diagram of the platform](doc/imgs/diag.drawio.png)
 
 ## Main features
 - Data collection with an embedded system and external sensors
@@ -65,7 +65,7 @@ The 'Visualize' page also pulls data from the cache if the selected duration is 
 ### Android Application
 The provided Android app is used to gather data from the smartphone's sensors (GPS location, orientation data) and send them to the client. 
 
-## Possible Improvements:
+## Improvements:
 1. ~~Redo device edit/list page to show lora eui if present~~ DONE (31008e87991f8ac9bcb3403117db5f9f2508782d)
 2. Multiple LoRa message structure for different devices (for now they must all use the same) UPDATE: can be done quite easily by editing the common/lora functions server side to take the deviceid, and provide a list of format.
 3. As of now, clients are polling to API to retrieve le list of nearby objects reported by other devices. This could be improved by using a messaging system, so clients only receive the necessary information without polling (would improve latency and network usage)
@@ -75,3 +75,5 @@ The provided Android app is used to gather data from the smartphone's sensors (G
 7. Create sub-categories of messages for various level or importance, and select which network to use
 8. Merge cache and database sources for data visualisation
 9. WebSocket: push data updates, instead of polling
+10. Proper API Safety measures: if using 4G/5G without a VPN, this platform must be public-facing to work, but it lacks many important safety features.
+11. Parallel Computing: concurrent request processing (for now, all incoming messages are processed as a http request on the post_data endpoint and _flask is monothreaded_, but that's a blessing in disguise as the mysql connections are not thread-safe anyway; implement an ORM ?)

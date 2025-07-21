@@ -57,6 +57,11 @@ def __checkDeviceRegistered(deviceid, conn):
     return len(res)>0
 
 def save_sample_DB(data):
+    """
+        Writes a data-sample to the Database.
+        This function modifies the object, so pass a copy is you need to keep your original object.
+    """
+
     db = db1 #mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
     c = c1 #db.cursor()
 
@@ -64,6 +69,12 @@ def save_sample_DB(data):
         request_type = data.pop('type', None)
         assert(request_type == 1)
         deviceid = data.pop('device-id', None)
+        
+        # removing platform-inner variables
+        data.pop('net', None) # might have some value, maybe we should keep it ?
+        data.pop('msgNumber', None)
+
+
         data['timestamp']=datetime.datetime.fromtimestamp(data['timestamp'])
         for field in data.keys():
             if field != "timestamp":
@@ -143,6 +154,7 @@ def data_LoRa_handler(message,device):
             print("Unknown message type")
             raise NotImplementedError
         message['device-id'] = deviceid
+        message['net'] = "lora"
         requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(message))
     else:
         print("unknown lora EUI ({0}), ignoring message".format(device))
@@ -199,6 +211,7 @@ def WS_msg_handler(message, Qws_in_dict):
         except Full:
             pass
     else:
+        data['net'] = "websocket"
         requests.post("http://"+Config['server_host']+":"+Config['server_port']+"/post_data",data=json.dumps(data))
 
     #end = time.perf_counter_ns()

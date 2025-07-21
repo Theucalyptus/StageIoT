@@ -60,5 +60,5 @@ The details of this serialization can be found in the `common/lora.py` file. It 
 - msgNumber: the message number, usefull for packet-loss detection
 
 Device update messages then contain all sensor data.
-Object report messages have a objects field, which is a list of objects, each with an id, a label, and their gps coordinates.
+Object report messages have a objects field, which is a list of objects, each with an id, a label, and gps coordinates.
 

@@ -168,7 +168,6 @@ def main():
     This is the main function of the Data Collecting plateform server.
     This program uses a MySQL database.
     You can modify some configuration settings in the config.conf file that is in the same folder/directory as this program.
-    DB auth not implemented yet, use a user with no password.
     """
 
     print("Starting Web Server")

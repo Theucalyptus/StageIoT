@@ -29,6 +29,18 @@ The workflow is as follow:
 - Download the data
     
 ### API
+List of all endpoints:
+- `/api/getObject/<deviceid>`: list of all objects reported by <deviceid> (used by the WUI)
+- `/api/deviceData/<deviceid>`: gets all data sent by a device since the provided date
+    - Args: 
+        - start_date -> a "YYYY-MM-DD HH:MM:SS" formated string
+        - end_date -> same as start_date
+        - dataType -> json formatted array of data fields (ex: dataType=='["timestamp", "latitude" , "longitude"]')
+        - key -> the user API Key
+- `/api/nearby_objects/<deviceid>`: returns the list of all objects and devices inside the default search radius (used by clients)
+- `/api/deviceList`: returns the list of all devices associated with a user
+    - args: user's API Key
+
 Command-line usage example, with HTTPie:
 ```sh
 # get request

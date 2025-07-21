@@ -53,7 +53,7 @@ To upload your programs to the device with the VSCode extension, we found that a
 You may also need to grant permissions to your user account to access the device, please check [client.md](client.md#fixing-permission-issues) for how to fix uart permission.
 
 ## Our Setup
-For most of our testing, we had the following setup:
 The Jetson is wired-up to the Lopy 4 Expanion board using three Dupont-connectors. On the Jetson, we use the pins 6, 8 and 10 (see here)[https://developer.nvidia.com/embedded/learn/jetson-orin-nano-devkit-user-guide/hardware_spec.html] of the UART1 interface. To use this interface, we set `device=/dev/THS1` in the client's config. On the Lopy's Expansion board, we connect those 3 pins to pin GND, P10 and P11 respectivly (those can be changed in the code).
+The Lopy 4 is powered using the micro-usb connector on the expansion board, plugged into one of the Jetson's USB ports.
 The OAK-D camera is simply wired via USB-C to the Jetson and doesn't require an external power supply.
 We used the Jetson as a Wifi access point, to which we connect all of our equipement, so the phone but also any other client, and the laptop running the platform.

@@ -468,12 +468,21 @@ def handle_data_message(data):
     """
     t = time.time()
             
+    # Network Interface
+    # This value is already set when using LoRa or WebSocket
+    # It is intended as a starting point to add differentiated processing based on the networking option used
+    # For example, push a reponse when using websocket instead of needing the client to poll the api.
+    if not "net" in data:
+        data["net"] = "http"
+
     # Network delay
     netDelay = (t - data["timestamp"]) * 1000 # in milliseconds
     if not "netDelay" in data:
         data['netDelay'] = netDelay
-
     # else:
+    #     When not using HTTP, the netDelay value is already provided by the message handler of the network
+    #     So the delay between now and when the netDelay was measured equals some overhead of the platform
+    #     from receiving the message and begining of its processing
     #     print("OVERHEAD", netDelay- data["netDelay"])
     
     # Packet Loss
@@ -488,14 +497,17 @@ def handle_data_message(data):
         stats_storage[data['device-id']]["lastmsgNumber"] = current
         stats_storage[data['device-id']]["lossSinceLast"] += nbLoss
 
+
+    # ==== MESSAGE HANDLING ====
     if data['type'] == MessageTypes.DEVICE_UPDATE:
         # device status update
         # save packet loss stat and reset
         data['packetLoss'] = stats_storage[data['device-id']]["lossSinceLast"]
         stats_storage[data['device-id']]["lossSinceLast"] = 0
 
-        Q_out.put(data.copy()) #copy because we edit the message before DB insertion
+        Q_out.put(data.copy()) # copy because we edit the message before DB insertion
         add_data_to_cache(data)
+    
     elif data['type'] == MessageTypes.OBJECT_REPORT:
         # object observation
         for object in data['objects']:
@@ -523,7 +535,7 @@ def add_data_to_cache(data):
     Add data to the cache based on the 'eui' value in the data dictionary.
 
     Parameters:
-    - data (dict): The data to be added to the cache.
+    - data -> dict: the data to be added to the cache.
 
     Returns:
     - None
@@ -1398,7 +1410,7 @@ def apiGetObject(deviceid):
     else:
         return jsonify({"error": "Object not found"}), 404
 
-# USED BY CLIENTSnearby_objec
+# USED BY CLIENTS
 @app.route('/api/nearby_objects/<deviceid>', methods=['GET'])
 def apinearby_objects(deviceid):
     """
@@ -1507,6 +1519,7 @@ def apiDeviceList():
     """
     key = request.args.get('key')
     username = __get_user_from_api_key(key)
+    print(username)
     return jsonify(__queryUserDeviceList(username))
 
 @app.route('/api/deviceData/<deviceid>', methods=['GET'])
@@ -1526,63 +1539,29 @@ def apiDevice_data(deviceid):
 
     """
 
-    db = mysql.connector.connect(host=Config["SQL_host"], user=Config["SQL_username"], password=Config["SQL_password"], database=Config["db_name"])
-    cursor = db.cursor()
     key = request.args.get('key')
     username = __get_user_from_api_key(key)
-    # TODO: check if user is allowed to querry the data from this device
+    if not username:
+        return jsonify({"error": "Unauthorized", "details": "Unknown/Invalid API Key"}), 401
 
-    start_date = request.args.get('start_date', default=(datetime.now() - timedelta(days=1)))
-    end_date = request.args.get('end_date', default=datetime.now())
-    
-    fmt='%Y-%m-%d %H:%M:%S'
-    if type(start_date) == str:
-        start_date = datetime.strptime(start_date, fmt)
-    if type(end_date) == str:
-        end_date = datetime.strptime(end_date, fmt)       
+    d = [t["device-id"] for t in __queryUserDeviceList(username)]
+    if deviceid in d:
+        start_date = request.args.get('start_date', default=(datetime.now() - timedelta(days=1)))
+        end_date = request.args.get('end_date', default=datetime.now())
+        
+        fmt='%Y-%m-%d %H:%M:%S'
+        if type(start_date) == str:
+            start_date = datetime.strptime(start_date, fmt)
+        if type(end_date) == str:
+            end_date = datetime.strptime(end_date, fmt)       
 
-    dataFields = request.args.get('dataType')
+        dataFields = json.loads(request.args.get('dataType'))
+        
+        data = __getDeviceData(deviceid, dataFields, start_date, end_date)
+        return jsonify(data), 200
+    else:
+        return jsonify({"error": "Forbidden", "details":"This account does not have the permission to access this device's data."}), 403
 
-    data = __getDeviceData(deviceid, dataFields, start_date, end_date)
-    return jsonify(data), 200
-    
-    # return jsonify({"error": "Invalid data type"})
-
-    # query = f"""
-    # SELECT * FROM Data
-    # JOIN Device ON Data.source = Device.`device-id`
-    # JOIN DeviceOwners ON Device.`device-id` = DeviceOwners.device
-    # WHERE DeviceOwners.owner = %s 
-    # AND Data.timestamp BETWEEN %s AND %s
-    # AND Device.`device-id` = %s   
-    # ORDER BY Data.timestamp DESC;
-    # """
-
-    # cursor.execute(query, (username, start_date, end_date, deviceid))
-    # data = cursor.fetchall()
-    # # print(data)
-    # # print(datetime.timestamp(data[0][0]))
-    
-    # columns = [col[0] for col in cursor.description]
-    # to_remove =[]
-    # to_remove.append(columns.index('password'))
-    # to_remove.append(columns.index('source'))
-    # to_remove.append(columns.index('dev-eui'))
-    # for col in range(len(columns)-1):
-    #     if not (columns[col] in select_clause) and select_clause!="*":
-    #         to_remove.append(col)
-    
-    # indexes = list(range(0,len(columns)-1))
-    # to_remove.sort(reverse=True)
-    # for i in to_remove:
-    #     columns.pop(i)
-    #     indexes.pop(i)
-    # data = [[row[i] for i in indexes] for row in data]
-    
-    # result = [dict(zip(columns, row)) for row in data]
-    # for i in range(len(result)):
-    #     result[i]["timestamp"]=datetime.timestamp(result[i]["timestamp"])
-    # return jsonify(result),200
 
 @app.route('/api/publicDeviceData/<deviceid>', methods=['GET'])
 def publicApiDevice_data(deviceid):
