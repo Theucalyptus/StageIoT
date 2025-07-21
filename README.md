@@ -67,7 +67,7 @@ The provided Android app is used to gather data from the smartphone's sensors (G
 
 ## Possible Improvements:
 1. ~~Redo device edit/list page to show lora eui if present~~ DONE (31008e87991f8ac9bcb3403117db5f9f2508782d)
-2. Multiple LoRa message structure for different devices (for now they must all use the same) UPDATE: can be done quite easily by editing the common/lora functions server side to take the deviceid, and provide a list of format.
+2. ~~Multiple LoRa message structure for different devices (for now they must all use the same)~~ DONE
 3. As of now, clients are polling to API to retrieve le list of nearby objects reported by other devices. This could be improved by using a messaging system, so clients only receive the necessary information without polling (would improve latency and network usage)
 4. ~~Provide a way to configure a client/device as a stationnary equipement, removing the need for a GPS~~ DONE (7e3b40cd3bfc5fb7e548b04d559a451b1b762fdd)
 5. ~~Live Data persistence: device live data are removed from cache after 1 hour, objects are stored in cache until the app is stopped.~~ DONE (bb2eff6fbd39b616300e1c3c1c5d836a7ba44d3e)
