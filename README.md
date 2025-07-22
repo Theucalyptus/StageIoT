@@ -65,6 +65,8 @@ The 'Visualize' page also pulls data from the cache if the selected duration is 
 ### Android Application
 The provided Android app is used to gather data from the smartphone's sensors (GPS location, orientation data) and send them to the client. 
 
+See [app.md](doc/app.md) for information about the Android app.
+
 ## Improvements:
 1. ~~Redo device edit/list page to show lora eui if present~~ DONE (31008e87991f8ac9bcb3403117db5f9f2508782d)
 2. ~~Multiple LoRa message structure for different devices (for now they must all use the same)~~ DONE

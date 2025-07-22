@@ -1,6 +1,6 @@
 # 📡 IoT Android App – Geolocation & Orientation via WebSocket
 
-This Android application was developed as part of an **IoT** project. It enables a smartphone connected to a Wi-Fi access point (typically from a microcontroller or embedded platform) to **send real-time geolocation and orientation data** via a **WebSocket connection**.
+This Android application was developed as part of an **IoT** project. It enables a smartphone connected to a Wi-Fi access point (typically from a microcontroller or embedded platform) to **send real-time geolocation and orientation data** and to **receive and display information about the network status and objects detected by other connected devices** via a **WebSocket connection**.
 
 ---
 
