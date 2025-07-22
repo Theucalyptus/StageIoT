@@ -147,7 +147,7 @@ def data_LoRa_handler(message,device):
     if deviceid != None:
         type = lora.get_message_type(message)
         if type == MessageTypes.DEVICE_UPDATE:
-            message = lora.lora_to_sample(message)
+            message = lora.lora_to_sample(message, deviceid)
         elif type == MessageTypes.OBJECT_REPORT:
             message = lora.lora_to_objects(message)
         else:
