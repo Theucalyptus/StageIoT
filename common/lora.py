@@ -38,7 +38,7 @@ OBJECTS_LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus
 
 
 # Same as for device objects, but 
-OBJECT_MSG_HEADER = ['type', 'timestamp']
+OBJECT_MSG_HEADER = MANDATORY_FIELDS
 OBJECT_ITEM_MSG = ['latitude', 'longitude', 'label', 'id']
 
 
