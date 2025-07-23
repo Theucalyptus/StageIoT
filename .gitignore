@@ -3,10 +3,9 @@
 *.d
 *.pyc
 
-Ressources Demo/
-
 client/old/
 client/logs/
+client/pictures/
 
 # VSCODE
 .vscode
