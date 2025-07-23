@@ -8,17 +8,27 @@ import time
 import sensors
 import cv2, depthai as dai, numpy as np    # ← ton module
 import logging
+import os
+import datetime
 from config import config
 
 logger = logging.getLogger(__name__)
 
 DEBUG_UI=True
 
-# ---------- 1. Constantes tracking ----------------------------------------
-PIX_MATCH_RADIUS   = 60    # px  – distance max centre‑à‑centre pour dire « même objet »
-PIX_SEND_THRESHOLD = 40    # px  – déplacement min avant de ré‑émettre
-LOST_TIMEOUT       = 2.0   # s   – purge si plus vu depuis X sec
-SEND_PERIOD        = 1.0   # s   – cadence d’envoi
+PIX_MATCH_RADIUS   = config.getint("camera", "pix_match_radius")
+PIX_SEND_THRESHOLD = config.getint("camera", "pix_send_threshold")
+LOST_TIMEOUT       = config.getfloat("camera", "lost_timeout")
+SEND_PERIOD        = config.getfloat("camera", "send_period")
+CONFIDENCE_THRESHOLD = config.getfloat("camera", "confidence_threshold")
+
+SAVE_IMAGES        = config.getboolean("camera", "capture_img")
+PIC_FOLDER = "pictures"
+
+
+if not os.path.isdir(PIC_FOLDER) and SAVE_IMAGES:
+    os.makedirs(PIC_FOLDER)
+
 
 LABELS = ["background","aeroplane","bicycle","bird","boat","bottle","bus","car",
         "cat","chair","cow","diningtable","dog","horse","motorbike","person",
@@ -124,7 +134,7 @@ class Camera:
 
         cam.setPreviewSize(300,300); cam.setInterleaved(False)
         monoL.setCamera("left"); monoR.setCamera("right")
-        nn.setBlobPath(str(blob)); nn.setConfidenceThreshold(0.5)
+        nn.setBlobPath(str(blob)); nn.setConfidenceThreshold(CONFIDENCE_THRESHOLD)
         monoL.out.link(stereo.left); monoR.out.link(stereo.right)
         cam.preview.link(nn.input); stereo.depth.link(nn.inputDepth)
         nn.out.link(xout_det.input); nn.passthrough.link(xout_rgb.input)
@@ -141,6 +151,8 @@ class Camera:
                 t_last_send = time.time()
 
                 while not self.stopVar:
+                    new_obj = False
+
                     rgb_msg = q_rgb.tryGet()
                     det_msg = q_det.tryGet()
                     if rgb_msg is None or det_msg is None:
@@ -174,11 +186,14 @@ class Camera:
                             trk = best
                             #print(f"[UPDATE] Objet ID {trk.id} ({label}) mis à jour à ({cx}, {cy})")
                         else:
+                            # TODO: add the filtering of important labels here ??
+
                             trk = Tracked(next_id, label, cx, cy, xyz)
                             tracked[next_id] = trk
                             matched_ids.add(next_id)
                             #print(f"[NOUVEAU] Objet ID {next_id} ({label}) détecté à ({cx}, {cy})")
                             next_id += 1
+                            new_obj=True
 
                         if DEBUG_UI:
                             # dessin debug
@@ -207,6 +222,11 @@ class Camera:
                             #print("envoi de données objets", obj_data_msg)
                             Q_out.put(obj_data_msg)
                             t_last_send = now
+
+                    # Si nouvel object détecté + sauvegarde de l'image activé
+                    #if SAVE_IMAGES and new_obj:
+                    if SAVE_IMAGES and len(tracked.values()):
+                        cv2.imwrite('{}/{}.{}'.format(PIC_FOLDER, datetime.datetime.fromtimestamp(now).strftime("%Y%m%d_%H%M%S"), "png"), frame)
 
                     if DEBUG_UI:
                         cv2.imshow("preview", frame)

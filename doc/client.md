@@ -10,7 +10,10 @@ Each sensor as a thread dedicated to sampling and logging its own data. A main t
 Objects report messages are handled separatly. For now, objects report messages are sent *only sent via the main network* (as we assume the use of LoRa as the backup, which doesn't offer enough bandwith for it to be practical). 
 We filter the main types of objects that we want (like car, person, motocycle...) and periodically send object report messages, containing all tracked objects.
 
+## Camera
 Objects detected by the camera are approximatly located using a combination of the GPS coordinates and azimuth provided by the phone, and the position of objects relative to the camera. This means that the phone should point in the same direction as the camera (i.e the top of the screen of the phone is ponting the same way as the lens)
+
+You can also save pictures of detected objects by enabling the `capture_img` option in the client's configuration file. This will export one image per second maximum (if any object is detected), with detection boxes drawn on top. One image is around ~150kB to ~200kB, so expect a maxium of 720MB of data generated for an hour of observation when using this feature.
 
 ## Running the client
 - Create a Python venv (Python >=3.10, tested on both 3.10.12 and 3.13.5)
