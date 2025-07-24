@@ -1235,7 +1235,7 @@ def edit_device(deviceid):
                         check = Interface.__getDeviceIDFromEUI(lora) 
                         if check != None and check != deviceid:
                             flash('The provided LoRa EUI is already assigned', 'danger')
-                            return redirect(url_for('edit_device'))        
+                            return redirect(url_for('edit_device', deviceid=deviceid))        
                         else:
                             res = True
                             try:
