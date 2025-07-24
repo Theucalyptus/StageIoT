@@ -15,6 +15,8 @@ We also provide a Android app allowing a phone to be used as a sensor by the cli
 - Data access API
 - Benchmarking & measures: the platform measure all sorts of things about itself and its performance, like network usage, latency and reliability
 
+A sample of the data produced by the platform as is is available in the ![examples/dataset 1](./examples/dataset%201/) folder.
+
 ## Networking
 The program is designed to either use the internet connection available on the host device if running on HTTP/WebSocket, as well as LoRa using a Lopy 4 wireless module connected via UART.
 The client allows for two networks to be used: one main and a backup/alternative. If the main network is down*, the client switches to the backup. In case both networks are down, the data is still being logged localy. When a network is down, we periodicaly check if its back up and switch accordingly.
